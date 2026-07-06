@@ -14,6 +14,7 @@ use App\Http\Controllers\Api\ClientResourcesApiController;
 use App\Http\Controllers\Api\CommitmentApiController;
 use App\Http\Controllers\Api\communityNursingApiController;
 use App\Http\Controllers\Api\CommunityParticipationApiController;
+use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\DisclaimerApiController;
 use App\Http\Controllers\Api\DvaApiController;
 use App\Http\Controllers\Api\FaqApiController;
@@ -34,8 +35,8 @@ use App\Http\Controllers\Api\PrivacyApiController;
 use App\Http\Controllers\Api\ProductApiController;
 use App\Http\Controllers\Api\ProfileController;
 use App\Http\Controllers\Api\ShippingPolicyApiController;
-use App\Http\Controllers\Api\StaffResourcesApiController;
 
+use App\Http\Controllers\Api\StaffResourcesApiController;
 use App\Http\Controllers\Api\supportCoordinationApiController;
 use App\Http\Controllers\Api\supportIndependentApiController;
 use App\Http\Controllers\Api\SystemApiController;
@@ -44,6 +45,7 @@ use App\Http\Controllers\Api\TermsApiController;
 use App\Http\Controllers\Api\UserRegisterController;
 use App\Http\Controllers\Api\WalletController;
 use Illuminate\Support\Facades\Route;
+
 
 
 
@@ -157,7 +159,12 @@ use Illuminate\Support\Facades\Route;
 
     Route::post('/user-register', [UserRegisterController::class, 'register']);
 
-    Route::get('/profile', [ProfileController::class, 'profile']);
     Route::post('/profile/update', [ProfileController::class, 'updateProfile']);
     Route::post('/change-password', [ProfileController::class, 'changePassword']);
     Route::post('profile/update-image', [ProfileController::class, 'updateImage']);
+    
+    Route::middleware('auth:sanctum')->group(function () {
+        Route::get('/profile', [ProfileController::class, 'profile']);
+        Route::get('/dashboard', [DashboardController::class, 'index']);
+
+    });

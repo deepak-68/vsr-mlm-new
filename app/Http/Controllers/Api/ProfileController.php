@@ -13,18 +13,17 @@ class ProfileController extends Controller
 {
     public function profile(Request $request)
     {
-        $user = MlmUser::with([      
+        $user = MlmUser::with([
                 'detail',
                 'sponsor:id,user_name,first_name,last_name'
-            ])->findOrFail($request->user_id);
+            ])
+            ->findOrFail($request->user()->id);
 
-
-            if ($user->detail) {
-                $user->detail->profile_image = $user->detail->profile_image
-                    ? asset('storage/' . $user->detail->profile_image)
-                    : null;
-            }
-        // return response()->json($user);
+        if ($user->detail) {
+            $user->detail->profile_image = $user->detail->profile_image
+                ? asset('storage/' . $user->detail->profile_image)
+                : null;
+        }
 
         return response()->json([
             'status' => true,

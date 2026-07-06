@@ -7,9 +7,11 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Laravel\Sanctum\HasApiTokens;
 
 class MlmUser extends Model
 {
+    use HasApiTokens;
     protected $table = 'mlm_users';
     
     protected $fillable = [
@@ -20,7 +22,7 @@ class MlmUser extends Model
         'verification_token', 'verification_expires','commission_percentage'
     ];
 
-    protected $hidden = ['password', 'verification_token'];
+    protected $hidden = ['password', 'verification_token', 'remember_token'];
 
     protected $casts = [
         'is_active' => 'boolean',

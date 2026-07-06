@@ -10,7 +10,7 @@ use Illuminate\Support\Facades\Http;
 
 class AuthController extends Controller
 {
-     public function login(Request $request)
+    public function login(Request $request)
     {
 
         $request->validate([
@@ -75,15 +75,15 @@ class AuthController extends Controller
         // Eloquent model required for Sanctum token
         // $mlmUser = \App\Models\MlmUser::find($user->id);
 
-        // // Delete previous token if needed
-        // $mlmUser->tokens()->delete();
+        // Delete previous token if needed
+        $mlmUser->tokens()->delete();
 
-        // $token = $mlmUser->createToken('Frontend')->plainTextToken;
+        $token = $mlmUser->createToken('Frontend')->plainTextToken;
 
         return response()->json([
             'success' => true,
             'message' => 'Login successful.',
-            // 'token' => $token,
+            'token' => $token,
             'user' => [
                 'id' => $mlmUser->id,
                 'track_id' => $mlmUser->track_id,
@@ -96,6 +96,42 @@ class AuthController extends Controller
                 'membership_type' => $mlmUser->membership_type,
                 'is_payout_active' => $mlmUser->is_payout_active,
             ]
+        ]);
+    }
+
+    public function logout(Request $request)
+    {
+        // return response()->json($request->all());
+        $request->user()->currentAccessToken()->delete();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Logged out successfully.',
+        ]);
+    }
+
+
+    public function me(Request $request)
+    {
+        $user = $request->user()->load(['detail:id,user_id,profile_image']);
+        $user->profile_image = !empty($user->detail?->profile_image)
+            ? asset('storage/' . $user->detail->profile_image)
+            : null;
+
+        return response()->json([
+            'success' => true,
+            'user' => [
+                'id' => $user->id,
+                'track_id' => $user->track_id,
+                'user_name' => $user->user_name,
+                'first_name' => $user->first_name,
+                'last_name' => $user->last_name,
+                'email' => $user->email,
+                'phone' => $user->phone,
+                'profile_image' => $user->profile_image,
+                'membership_type' => $user->membership_type,
+                'is_payout_active' => $user->is_payout_active,
+            ],
         ]);
     }
 }
