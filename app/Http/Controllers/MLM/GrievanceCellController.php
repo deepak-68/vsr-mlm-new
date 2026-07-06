@@ -144,7 +144,7 @@ class GrievanceCellController extends Controller
     public function changeStatus(Request $request, $id)
     {
         $request->validate([
-            'status' => 'required|in:open,in_progress,closed',
+            'status' => 'required|in:open,in_progress,resolved,closed',
         ]);
 
         $ticket = Grivance::findOrFail($id);

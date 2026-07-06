@@ -7,6 +7,8 @@ use App\Models\AdminBankDetail;
 use App\Models\FundRequest;
 use App\Models\FundSummary;
 use App\Models\FundTransfer;
+use App\Http\Resources\MlmUserResource;
+use App\Models\MlmUser;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 
@@ -18,23 +20,26 @@ class FundRequestApiController extends Controller
     public function index(Request $request)
     {
         try {
-            $query = FundRequest::with(['user', 'bankDetail'])->where('user_id', $request->user_id);
+            $query = FundRequest::with(['user', 'bankDetail']);
+
+            // Filter by user
+            if ($request->filled('user_id')) {
+                $userId = MlmUser::where('id', $request->user_id)->value('id');
+                $query->where('user_id', $userId);
+            }
 
             // Filter by status
             if ($request->filled('status')) {
                 $query->where('status', $request->status);
             }
 
-            // Filter by user
-            if ($request->filled('user_id')) {
-                $query->where('user_id', $request->user_id);
-            }
-
             $fundRequests = $query->orderBy('created_at', 'desc')->get();
+
+            $data = $fundRequests->map(fn($fr) => array_merge($fr->toArray(), []));
 
             return response()->json([
                 'success' => true,
-                'data' => $fundRequests,
+                'data' => $data,
                 'message' => 'Fund requests fetched successfully'
             ]);
         } catch (\Exception $e) {
@@ -120,7 +125,7 @@ class FundRequestApiController extends Controller
     public function submit(Request $request)
     {
         $validated = $request->validate([
-            'user_id' => 'required|exists:mlm_users,id',
+            'user_id' => 'required',
             'username' => 'required|string',
             'bank_detail_id' => 'required|exists:admin_bank_details,id',
             'payment_mode' => 'required|string',
@@ -134,6 +139,8 @@ class FundRequestApiController extends Controller
         ]);
 
         try {
+            $userId = MlmUser::where('id', $validated['user_id'])->value('id');
+
             // Handle image upload
             $imagePath = null;
             if ($request->hasFile('hash_code')) {
@@ -141,7 +148,7 @@ class FundRequestApiController extends Controller
             }
 
             $fundRequest = FundRequest::create([
-                'user_id' => $validated['user_id'],
+                'user_id' => $userId,
                 'username' => $validated['username'],
                 'bank_detail_id' => $validated['bank_detail_id'],
                 'payment_mode' => $validated['payment_mode'],
@@ -155,9 +162,26 @@ class FundRequestApiController extends Controller
                 'status' => 'pending',
             ]);
 
+            $fundRequest->load('user');
+
             return response()->json([
                 'success' => true,
-                'data' => $fundRequest,
+                'data' => [
+                    'id' => $fundRequest->id,
+                    'username' => $fundRequest->username,
+                    'bank_detail_id' => $fundRequest->bank_detail_id,
+                    'payment_mode' => $fundRequest->payment_mode,
+                    'amount' => $fundRequest->amount,
+                    'remark' => $fundRequest->remark,
+                    'mode_of_payment' => $fundRequest->mode_of_payment,
+                    'deposit_bank' => $fundRequest->deposit_bank,
+                    'transaction_no' => $fundRequest->transaction_no,
+                    'deposit_date' => $fundRequest->deposit_date,
+                    'hash_code_image' => $fundRequest->hash_code_image,
+                    'status' => $fundRequest->status,
+                    'created_at' => $fundRequest->created_at,
+                    'updated_at' => $fundRequest->updated_at,
+                ],
                 'message' => 'Fund request submitted successfully'
             ], 201);
         } catch (\Exception $e) {
@@ -172,23 +196,16 @@ class FundRequestApiController extends Controller
     public function withdrawalHistory(Request $request)
     {
         try {
-            $query = FundTransfer::with('user')->where('receiver_id', $request->user_id);
-
-            // // Filter by status
-            // if ($request->filled('status')) {
-            //     $query->where('status', $request->status);
-            // }
-
-            // // Filter by user
-            // if ($request->filled('user_id')) {
-            //     $query->where('user_id', $request->user_id);
-            // }
+            $userId = MlmUser::where('id', $request->user_id)->value('id');
+            $query = FundTransfer::with(['sender', 'receiver'])->where('receiver_id', $userId);
 
             $fundTransfer = $query->orderBy('created_at', 'desc')->get();
 
+            $data = $fundTransfer->map(fn($ft) => array_merge($ft->toArray(), []));
+
             return response()->json([
                 'success' => true,
-                'data' => $fundTransfer,
+                'data' => $data,
                 'message' => 'Fund Transfer fetched successfully'
             ]);
         } catch (\Exception $e) {

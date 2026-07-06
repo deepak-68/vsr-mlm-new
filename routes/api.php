@@ -24,11 +24,14 @@ use App\Http\Controllers\Api\FundTransferApiController;
 use App\Http\Controllers\Api\GrievanceApiController;
 use App\Http\Controllers\Api\GrievanceController;
 use App\Http\Controllers\Api\HomeApiController;
+use App\Http\Controllers\Api\IncomeLogController;
+use App\Http\Controllers\Api\InvoiceController;
 use App\Http\Controllers\Api\HomeServiceApiController;
 use App\Http\Controllers\Api\KycController;
 use App\Http\Controllers\Api\MLMApiController;
 use App\Http\Controllers\Api\NdisApiController;
 use App\Http\Controllers\Api\NiisqApiController;
+use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\OrderController;
 use App\Http\Controllers\Api\planManagementApiController;
 use App\Http\Controllers\Api\PrivacyApiController;
@@ -44,6 +47,7 @@ use App\Http\Controllers\Api\TeamApiController;
 use App\Http\Controllers\Api\TermsApiController;
 use App\Http\Controllers\Api\UserRegisterController;
 use App\Http\Controllers\Api\WalletController;
+use App\Http\Controllers\Api\WhatsAppController;
 use Illuminate\Support\Facades\Route;
 
 
@@ -146,13 +150,24 @@ use Illuminate\Support\Facades\Route;
     Route::get('my-tickets',               [GrievanceController::class, 'myTickets']);
 
     Route::get('outbox',               [GrievanceController::class, 'outbox']);
-    
+    Route::post('schedule-callback',   [GrievanceController::class, 'scheduleCallback']);
+    Route::get('whatsapp-number',      [WhatsAppController::class, 'getNumber']);
+    Route::post('whatsapp-number',     [WhatsAppController::class, 'updateNumber']);
     
     Route::post('purchase',               [OrderController::class, 'purchase']);
-    Route::get('order-history',               [OrderController::class, 'history']);
+    Route::post('order-for-someone',      [OrderController::class, 'orderForSomeone']);
+    Route::get('order-history',           [OrderController::class, 'history']);
+    Route::get('resolve-identifier',      [OrderController::class, 'resolveIdentifier']);
+    Route::get('invoice/{publicId}',          [InvoiceController::class, 'show']);
+    Route::get('invoice/{publicId}/download', [InvoiceController::class, 'download']);
     
     Route::get('direct-income',               [WalletController::class, 'directIncome']);
     Route::get('matching-income',               [WalletController::class, 'matchingIncome']);
+    Route::get('income-log',                    [IncomeLogController::class, 'index']);
+    Route::get('notifications',                 [NotificationController::class, 'index']);
+    Route::get('notifications/unread-count',    [NotificationController::class, 'unreadCount']);
+    Route::post('notifications/{id}/read',      [NotificationController::class, 'markAsRead']);
+    Route::post('notifications/read-all',       [NotificationController::class, 'markAllAsRead']);
 
 
     // mlm user profile 

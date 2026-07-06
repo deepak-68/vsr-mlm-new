@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Models\Product;
+use App\Models\ProductImage;
 use App\Models\ProductCategory;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -13,7 +14,7 @@ class ProductController extends Controller
 {
     public function index()
     {
-        $products = Product::with('category')->latest()->paginate(10);
+        $products = Product::with('category', 'images')->latest()->paginate(10);
         $categories = ProductCategory::all();
         $ccSetting = CcPointSetting::getCurrent(); // ✅ Load CC setting
 
@@ -55,26 +56,26 @@ class ProductController extends Controller
         $count++;
     }
 
-    $imagePaths = [];
-    if ($request->hasFile('images')) {
-        foreach ($request->file('images') as $image) {
-            $path = $image->store('products', 'public');
-            $imagePaths[] = $path;
-        }
-    }
-
-    $validated['images'] = $imagePaths;
     $validated['in_stock'] = $validated['stock'] > 0;
     $validated['featured'] = $request->has('featured');
     $validated['status'] = $request->status;
 
-    // ✅ Auto-calculate CC points if not provided
     if (empty($validated['cc_points'])) {
         $price = $validated['discount_price'] ?? $validated['price'];
         $validated['cc_points'] = CcPointSetting::calculateCCFromPrice($price);
     }
 
-    Product::create($validated);
+    $product = Product::create($validated);
+
+    if ($request->hasFile('images')) {
+        foreach ($request->file('images') as $position => $image) {
+            $path = $image->store('products', 'public');
+            $product->images()->create([
+                'image_path' => $path,
+                'position' => $position,
+            ]);
+        }
+    }
 
     return redirect()->route('products.index')
         ->with('success', 'Product created successfully!');
@@ -135,31 +136,25 @@ class ProductController extends Controller
         }
     }
     
-    // Handle image removal
     if ($request->has('remove_images') && is_array($request->remove_images)) {
-        $images = $product->images ?? [];
-        foreach ($request->remove_images as $index) {
-            if (isset($images[$index])) {
-                Storage::disk('public')->delete($images[$index]);
-                unset($images[$index]);
+        foreach ($request->remove_images as $imageId) {
+            $productImage = ProductImage::find($imageId);
+            if ($productImage) {
+                Storage::disk('public')->delete($productImage->image_path);
+                $productImage->delete();
             }
         }
-        $validated['images'] = array_values($images);
     }
-    
-    // Handle new image uploads
+
     if ($request->hasFile('images')) {
-        $existingImages = $product->images ?? [];
-        foreach ($request->file('images') as $image) {
+        $maxPosition = $product->images()->max('position') ?? -1;
+        foreach ($request->file('images') as $position => $image) {
             $path = $image->store('products', 'public');
-            $existingImages[] = $path;
+            $product->images()->create([
+                'image_path' => $path,
+                'position' => $maxPosition + 1 + $position,
+            ]);
         }
-        $validated['images'] = $existingImages;
-    }
-    
-    // ✅ CRITICAL: If no image changes, don't update images field
-    if (!isset($validated['images'])) {
-        unset($validated['images']);
     }
     
     $validated['in_stock'] = $validated['stock'] > 0;
@@ -200,10 +195,9 @@ class ProductController extends Controller
     }
     
     // ✅ Safe to delete - no orders reference this product
-    if ($product->images) {
-        foreach ($product->images as $image) {
-            Storage::disk('public')->delete($image);
-        }
+    foreach ($product->images as $productImage) {
+        Storage::disk('public')->delete($productImage->image_path);
+        $productImage->delete();
     }
     
     $product->delete();
@@ -216,14 +210,12 @@ class ProductController extends Controller
      */
     public function removeImage(Request $request, Product $product)
     {
-        $index = $request->index;
-        $images = $product->images ?? [];
+        $imageId = $request->image_id;
+        $productImage = ProductImage::find($imageId);
 
-        if (isset($images[$index])) {
-            Storage::disk('public')->delete($images[$index]);
-            unset($images[$index]);
-            $product->images = array_values($images);
-            $product->save();
+        if ($productImage && $productImage->product_id === $product->id) {
+            Storage::disk('public')->delete($productImage->image_path);
+            $productImage->delete();
         }
 
         return response()->json(['success' => true]);

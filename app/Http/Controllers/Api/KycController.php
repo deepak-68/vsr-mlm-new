@@ -3,7 +3,9 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Resources\MlmUserResource;
 use App\Models\Kyc;
+use App\Models\MlmUser;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 
@@ -67,8 +69,9 @@ class KycController extends Controller
             'bank_document_image' => 'nullable|image|mimes:jpg,jpeg,png|max:2048',
         ]);
 
+            $userId = MlmUser::where('id', $request->user_id)->value('id');
         $kyc = Kyc::firstOrNew([
-            'user_id' => $request->user_id
+            'user_id' => $userId
         ]);
 
         $kyc->pan_number = $request->pan_number;
@@ -106,10 +109,24 @@ class KycController extends Controller
 
         $kyc->save();
 
+        $kyc->load('user');
+
         return response()->json([
             'status' => true,
             'message' => 'KYC submitted successfully',
-            'data' => $kyc
+            'data' => [
+                'id' => $kyc->id,
+                'pan_number' => $kyc->pan_number,
+                'aadhaar_number' => $kyc->aadhaar_number,
+                'pan_image' => $kyc->pan_image,
+                'aadhaar_front_image' => $kyc->aadhaar_front_image,
+                'aadhaar_back_image' => $kyc->aadhaar_back_image,
+                'bank_document_image' => $kyc->bank_document_image,
+                'status' => $kyc->status,
+                'reject_reason' => $kyc->reject_reason,
+                'created_at' => $kyc->created_at,
+                'updated_at' => $kyc->updated_at,
+            ]
         ]);
     }
 
@@ -117,14 +134,21 @@ class KycController extends Controller
     public function kycStatus(Request $request)
     {
         try {
-            $status = Kyc::where('user_id', $request->user_id)
+        $userId = MlmUser::where('id', $request->user_id)->value('id');
+            $status = Kyc::with('user')->where('user_id', $userId)
                 ->select('status', 'id', 'user_id')
                 ->latest()
                 ->first();
 
+            $data = $status ? [
+                'id' => $status->id,
+                'status' => $status->status,
+                'user_id' => $status->user_id,
+            ] : null;
+
             return response()->json([
                 'success' => true,
-                'data' => $status
+                'data' => $data
             ], 200);
 
         } catch (\Exception $e) {

@@ -5,7 +5,10 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\GrievanceAttachment;
 use App\Models\GrievanceMassage;
+use App\Models\CallbackRequest;
 use App\Models\Grivance;
+use App\Http\Resources\MlmUserResource;
+use App\Models\MlmUser;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -15,7 +18,7 @@ class GrievanceController extends Controller
     {
         // return response()->json($request->all());
         $validated = $request->validate([
-            'user_id'    => 'required|exists:mlm_users,id',
+            'user_id'    => 'required',
             'subject'    => 'required|string|max:255',
             'category'   => 'required|in:dispatch,e-wallet,software-issue,kyc,TDS-and-gst,direct-seller,product-and-quality,other',
             'priority'   => 'nullable|in:low,medium,high',
@@ -23,11 +26,13 @@ class GrievanceController extends Controller
             'attachment' => 'nullable|file|mimes:jpg,jpeg,png,pdf|max:5120',
         ]);
 
+        $userId = MlmUser::where('id', $request->user_id)->value('id');
+
         DB::beginTransaction();
 
         try {
             $ticket = Grivance::create([
-                'user_id'   => $request->user_id,
+                'user_id'   => $userId,
                 'ticket_no' => Grivance::generateTicketNo(),
                 'subject'   => $validated['subject'],
                 'category'  => $validated['category'],
@@ -43,7 +48,7 @@ class GrievanceController extends Controller
 
             $grievanceMessage = GrievanceMassage::create([
                 'grivance_id' => $ticket->id,
-                'sender_id'   => $request->user_id,
+                'sender_id'   => $userId,
                 'message'     => $validated['message'],
                 'attachment'  => $attachmentPath,
             ]);
@@ -130,11 +135,12 @@ class GrievanceController extends Controller
     {
         $validated = $request->validate([
             'ticket_id'  => 'required|exists:grivances,id',
-            'sender_id'  => 'required|exists:mlm_users,id',
+            'sender_id'  => 'required',
             'message'    => 'required|string',
             'attachment' => 'nullable|file|mimes:jpg,jpeg,png,pdf|max:5120',
         ]);
 
+        $senderId = MlmUser::where('id', $validated['sender_id'])->value('id');
         $ticket = Grivance::findOrFail($validated['ticket_id']);
 
         if ($ticket->status === 'closed') {
@@ -155,7 +161,7 @@ class GrievanceController extends Controller
 
             $msg = GrievanceMassage::create([
                 'grivance_id' => $ticket->id,
-                'sender_id'   => $validated['sender_id'],
+                'sender_id'   => $senderId,
                 'message'     => $validated['message'],
                 'attachment'  => $attachmentPath,
             ]);
@@ -168,7 +174,7 @@ class GrievanceController extends Controller
             }
 
             // Auto-move status to in_progress when admin first replies
-            if ($ticket->status === 'open' && $ticket->user_id !== $validated['sender_id']) {
+            if ($ticket->status === 'open' && $ticket->user_id !== $senderId) {
                 $ticket->update(['status' => 'in_progress']);
             }
 
@@ -201,7 +207,7 @@ class GrievanceController extends Controller
     public function changeStatus(Request $request, $id)
     {
         $request->validate([
-            'status' => 'required|in:open,in_progress,closed',
+            'status' => 'required|in:open,in_progress,resolved,closed',
         ]);
 
         $ticket = Grivance::find($id);
@@ -236,10 +242,12 @@ class GrievanceController extends Controller
     public function myTickets(Request $request)
     {
         $request->validate([
-            'user_id' => 'required|exists:mlm_users,id',
+            'user_id' => 'required',
         ]);
 
-        $tickets = Grivance::where('user_id', $request->user_id)
+        $userId = MlmUser::where('id', $request->user_id)->value('id');
+
+        $tickets = Grivance::where('user_id', $userId)
             ->latest()
             ->get()
             ->map(fn($t) => [
@@ -270,9 +278,11 @@ class GrievanceController extends Controller
 
             $fundTransfer = $query->orderBy('created_at', 'desc')->get();
 
+            $data = $fundTransfer->map(fn($ticket) => array_merge($ticket->toArray(), []));
+
             return response()->json([
                 'success' => true,
-                'data' => $fundTransfer,
+                'data' => $data,
                 'message' => 'Outbox fetched successfully'
             ]);
         } catch (\Exception $e) {
@@ -280,6 +290,45 @@ class GrievanceController extends Controller
                 'success' => false,
                 'message' => 'Failed to fetch Outbox',
                 'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    public function scheduleCallback(Request $request)
+    {
+        $request->validate([
+            'user_id'         => 'required',
+            'preferred_date'  => 'required|date',
+            'preferred_time'  => 'required',
+            'issue_summary'   => 'nullable|string',
+        ]);
+
+        $userId = MlmUser::where('id', $request->user_id)->value('id');
+
+        try {
+            $callback = CallbackRequest::create([
+                'mlm_user_id'    => $userId,
+                'preferred_date' => $request->preferred_date,
+                'preferred_time' => $request->preferred_time,
+                'issue_summary'  => $request->issue_summary,
+                'status'         => CallbackRequest::STATUS_PENDING,
+            ]);
+
+            return response()->json([
+                'status'  => true,
+                'message' => 'Callback scheduled successfully.',
+                'data'    => [
+                    'id' => $callback->id,
+                    'preferred_date' => $callback->preferred_date,
+                    'preferred_time' => $callback->preferred_time,
+                    'issue_summary'  => $callback->issue_summary,
+                    'status'         => $callback->status,
+                ],
+            ], 201);
+        } catch (\Exception $e) {
+            return response()->json([
+                'status'  => false,
+                'message' => 'Failed to schedule callback. ' . $e->getMessage(),
             ], 500);
         }
     }

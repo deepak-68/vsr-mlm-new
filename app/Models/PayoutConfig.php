@@ -20,7 +20,8 @@ class PayoutConfig extends Model
     
     public function getThresholdCC(): int
     {
-        return $this->products_for_payout * $this->cc_per_product; // 40 * 20 = 800 CC
+        // Phase 2: no hard cap, but threshold for eligibility still uses this
+        return $this->products_for_payout * $this->cc_per_product;
     }
     
     public function ccToCurrency(float $cc): float

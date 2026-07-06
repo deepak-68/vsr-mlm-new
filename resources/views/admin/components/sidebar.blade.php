@@ -334,6 +334,43 @@
             </li>
 
             <li>
+                <a href="{{ route('callback-requests.index') }}" class="ai-icon" aria-expanded="false">
+                    <i class="fa fa-phone"></i>
+                    <span class="nav-text">Callback Requests</span>
+                </a>
+            </li>
+
+            <li><a class="has-arrow ai-icon" href="javascript:void()" aria-expanded="false">
+                    <i class="flaticon-381-settings-2"></i>
+                    <span class="nav-text">Management</span>
+                </a>
+                <ul aria-expanded="false">
+                    <li><a href="{{ route('ranks.index') }}">Ranks</a></li>
+                    <li><a href="{{ route('rewards.index') }}">Rewards</a></li>
+                    <li><a href="{{ route('user-ranks.index') }}">User Ranks</a></li>
+                    <li><a href="{{ route('user-rewards.index') }}">User Rewards</a></li>
+                    <li><a href="{{ route('purchase-history.index') }}">Purchase History</a></li>
+                    <li><a href="{{ route('referral-income-logs.index') }}">Referral Income Logs</a></li>
+                    <li><a href="{{ route('notification-logs.index') }}">Notifications</a></li>
+                </ul>
+            </li>
+
+            <li><a class="has-arrow ai-icon" href="javascript:void()" aria-expanded="false">
+                    <i class="flaticon-381-documents"></i>
+                    <span class="nav-text">Reports</span>
+                </a>
+                <ul aria-expanded="false">
+                    <li><a href="{{ route('reports.purchase') }}">Purchase Report</a></li>
+                    <li><a href="{{ route('reports.income') }}">Income Report</a></li>
+                    <li><a href="{{ route('reports.referral-income') }}">Referral Income Report</a></li>
+                    <li><a href="{{ route('reports.reward-achievement') }}">Reward Achievement Report</a></li>
+                    <li><a href="{{ route('reports.rank-achievement') }}">Rank Achievement Report</a></li>
+                    <li><a href="{{ route('reports.withdrawal') }}">Withdrawal Report</a></li>
+                    <li><a href="{{ route('reports.user-activity') }}">User Activity Report</a></li>
+                </ul>
+            </li>
+
+            <li>
                 <div class="custom-btn-logout">
                     <a href="#" class="dropdown-item ai-icon"
                         onclick="event.preventDefault(); document.getElementById('logout-form').submit();">

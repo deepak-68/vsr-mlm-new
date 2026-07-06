@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Resources\MlmUserResource;
 use App\Models\MlmUser;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -28,7 +29,7 @@ class ProfileController extends Controller
         return response()->json([
             'status' => true,
             'message' => 'Profile fetched successfully',
-            'data' => $user,
+            'data' => new MlmUserResource($user),
         ]);
     }
 
@@ -106,7 +107,7 @@ class ProfileController extends Controller
         return response()->json([
             'status' => true,
             'message' => 'Profile updated successfully',
-            'data' => $user->fresh()
+            'data' => new MlmUserResource($user->fresh())
         ]);
     }
 

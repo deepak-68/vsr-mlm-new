@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Resources\MlmUserResource;
 use App\Mail\MlmActivationMail;
 use App\Mail\MlmUserWelcomeMail;
 use App\Models\MLMTree;
@@ -118,7 +119,7 @@ class UserRegisterController extends Controller
         return response()->json([
             'status' => true,
             'message' => 'Registration successful.',
-            'data' => $user
+            'data' => new MlmUserResource($user)
         ], 201);
     }
 }

@@ -29,13 +29,10 @@ class Product extends Model
         'in_stock',
         'status',
         'featured',
-        'images', 
-        'slug',// ✅ Make sure this is here
+        'slug',
     ];
-    
-    // ✅ Add this casts array - MOST IMPORTANT FIX
+
     protected $casts = [
-        'images' => 'array',  // ✅ This converts JSON ↔ Array automatically
         'price' => 'decimal:2',
         'discount_price' => 'decimal:2',
         'cc_points' => 'integer',
@@ -44,16 +41,19 @@ class Product extends Model
         'featured' => 'boolean',
         'in_stock' => 'boolean',
     ];
-    
+
     public function category()
     {
         return $this->belongsTo(ProductCategory::class, 'category_id');
     }
-    
-    // ✅ Helper to get first image safely
+
+    public function images()
+    {
+        return $this->hasMany(ProductImage::class)->orderBy('position');
+    }
+
     public function getFirstImageAttribute()
     {
-        $images = $this->images ?? [];
-        return $images[0] ?? null;
+        return $this->images->first()->image_path ?? null;
     }
 }

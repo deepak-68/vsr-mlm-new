@@ -19,7 +19,8 @@ class MlmUser extends Model
         'email', 'phone', 'password', 'sponsor_id', 'position_in_sponsor_leg',
         'membership_type', 'desired_membership_type', 'current_package_id',
         'is_active', 'is_verified', 'is_deleted', 'is_defaulter', 'is_payout_active',
-        'verification_token', 'verification_expires','commission_percentage'
+        'verification_token', 'verification_expires','commission_percentage',
+        'privacy_policy_accepted', 'terms_accepted'
     ];
 
     protected $hidden = ['password', 'verification_token', 'remember_token'];
@@ -31,6 +32,8 @@ class MlmUser extends Model
         'is_defaulter' => 'boolean',
         'is_payout_active' => 'boolean',
         'verification_expires' => 'datetime',
+        'privacy_policy_accepted' => 'boolean',
+        'terms_accepted' => 'boolean',
     ];
 
     public function detail()
@@ -111,5 +114,25 @@ public function payoutTransactions()
 public function userOrder()
 {
     return $this->hasMany(\App\Models\Order::class, 'user_id');
+}
+
+public function currentRank()
+{
+    return $this->hasOne(UserRank::class, 'mlm_user_id')->where('is_current', true);
+}
+
+public function notifications()
+{
+    return $this->hasMany(Notification::class, 'mlm_user_id');
+}
+
+public function invoices()
+{
+    return $this->hasMany(Invoice::class, 'mlm_user_id');
+}
+
+public function callbackRequests()
+{
+    return $this->hasMany(CallbackRequest::class, 'mlm_user_id');
 }
 }

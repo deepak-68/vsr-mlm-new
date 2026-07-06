@@ -82,7 +82,7 @@
                                         <td>
                                         <td>
                                             @php
-                                                $firstImage = $product->images[0] ?? null;
+                                                $firstImage = $product->first_image;
                                             @endphp
                                             @if ($firstImage)
                                                 <img src="{{ asset('storage/' . $firstImage) }}" alt="{{ $product->name }}"
@@ -220,8 +220,8 @@
                                                 <div class="col-lg-6 mb-4">
                                                     <h6>Product Images</h6>
                                                     <div class="d-flex gap-2 flex-wrap">
-                                                        @foreach ($product->images ?? [] as $image)
-                                                            <img src="{{ asset('storage/' . $image) }}"
+                                                        @foreach ($product->images as $image)
+                                                            <img src="{{ asset('storage/' . $image->image_path) }}"
                                                                 alt="{{ $product->name }}" class="rounded"
                                                                 width="100" height="100" style="object-fit: cover;">
                                                         @endforeach
@@ -418,21 +418,20 @@
                                                         <!-- Current Images -->
                                                         <div class="mb-3">
                                                             <label>Current Images</label>
-                                                            <div class="d-flex gap-2 flex-wrap"
-                                                                id="currentImages{{ $product->id }}">
-                                                                @foreach ($product->images ?? [] as $index => $image)
-                                                                    <div class="position-relative">
-                                                                        <img src="{{ asset('storage/' . $image) }}"
+                                                        <div class="d-flex gap-2 flex-wrap"
+                                                                 id="currentImages{{ $product->id }}">
+                                                                @foreach ($product->images as $image)
+                                                                    <div class="position-relative" id="imgWrap{{ $image->id }}">
+                                                                        <img src="{{ asset('storage/' . $image->image_path) }}"
                                                                             alt="{{ $product->name }}" class="rounded"
                                                                             width="80" height="80"
                                                                             style="object-fit: cover;">
-                                                                        <input type="hidden" name="remove_images[]"
-                                                                            value="{{ $index }}"
-                                                                            class="remove-img-{{ $index }}"
-                                                                            style="display:none;">
+<input type="hidden" value="{{ $image->id }}"
+    class="remove-img-{{ $image->id }}"
+    style="display:none;">
                                                                         <button type="button"
                                                                             class="btn btn-danger btn-sm position-absolute top-0 start-100 translate-middle rounded-circle"
-                                                                            onclick="removeImage({{ $product->id }}, {{ $index }})"
+                                                                            onclick="removeImage({{ $product->id }}, {{ $image->id }})"
                                                                             style="width: 20px; height: 20px; padding: 0; font-size: 12px;">×</button>
                                                                     </div>
                                                                 @endforeach
@@ -743,7 +742,7 @@
         @endforeach
 
         // Remove Image Function
-        function removeImage(productId, index) {
+        function removeImage(productId, imageId) {
             Swal.fire({
                 title: 'Remove Image?',
                 text: "This will mark the image for removal",
@@ -754,8 +753,8 @@
                 confirmButtonText: 'Yes, remove it!'
             }).then((result) => {
                 if (result.isConfirmed) {
-                    $(`.remove-img-${index}`).val(index);
-                    $(`#currentImages${productId} .position-relative:nth-child(${index + 1})`).fadeOut();
+                    $(`.remove-img-${imageId}`).attr('name', 'remove_images[]');
+                    $(`#imgWrap${imageId}`).fadeOut();
                 }
             });
         }

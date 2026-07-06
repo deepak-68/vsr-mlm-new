@@ -3,7 +3,9 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Resources\MlmUserResource;
 use App\Models\FundSummary;
+use App\Models\MlmUser;
 use Illuminate\Http\Request;
 
 class FundSummaryApiController extends Controller
@@ -18,7 +20,8 @@ class FundSummaryApiController extends Controller
 
             // Filter by user_id
             if ($request->filled('user_id')) {
-                $query->where('user_id', $request->user_id);
+                $userId = MlmUser::where('id', $request->user_id)->value('id');
+                $query->where('user_id', $userId);
             }
 
             // Filter by type
@@ -39,13 +42,17 @@ class FundSummaryApiController extends Controller
                 ->orderBy('id', 'desc')
                 ->get();
 
+            $fundSummaries->load('user');
+
+            $data = $fundSummaries->map(fn($fs) => array_merge($fs->toArray(), []));
+
             // Calculate totals
             $totalCredit = $fundSummaries->sum('credit');
             $totalDebit = $fundSummaries->sum('debit');
 
             return response()->json([
                 'success' => true,
-                'data' => $fundSummaries,
+                'data' => $data,
                 'totals' => [
                     'credit' => $totalCredit,
                     'debit' => $totalDebit,

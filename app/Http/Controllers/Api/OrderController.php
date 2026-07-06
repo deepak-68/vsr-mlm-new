@@ -5,14 +5,13 @@ namespace App\Http\Controllers\Api;
 use App\Services\PurchaseService;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\PurchaseProductRequest;
-use App\Models\MLMTree;
+use App\Http\Resources\MlmUserResource;
+use App\Models\MlmUser;
 use App\Models\Order;
 use App\Models\OrderItem;
-use App\Models\Product;
+use App\Models\Invoice;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Validator;
 
 class OrderController extends Controller
 {
@@ -25,7 +24,6 @@ class OrderController extends Controller
 
     public function purchase(PurchaseProductRequest $request)
     {
-        // return response()->json($request->all());
         try {
             $order = $this->purchaseService->purchase(
                 $request->user_id,
@@ -33,21 +31,24 @@ class OrderController extends Controller
                 $request->quantity
             );
 
+            $order->load('user');
+
+            $invoice = Invoice::where('order_id', $order->id)->first();
+
             return response()->json([
                 'status' => true,
                 'message' => 'Product purchased successfully.',
-                'data' => $order
+                'data' => $order,
+                'invoice' => $invoice,
             ]);
 
         } catch (\DomainException $e) {
-
             return response()->json([
                 'status' => false,
                 'message' => $e->getMessage()
             ], 422);
-
         } catch (\Exception $e) {
-
+            Log::error('Purchase Error: ' . $e->getMessage());
             return response()->json([
                 'status' => false,
                 'message' => 'Purchase failed.',
@@ -56,15 +57,115 @@ class OrderController extends Controller
         }
     }
 
+    public function orderForSomeone(Request $request)
+    {
+        $request->validate([
+            'ordering_user_id' => 'required',
+            'product_id' => 'required|exists:products,id',
+            'quantity' => 'required|integer|min:1',
+        ]);
+
+        $orderingUser = MlmUser::findOrFail($request->ordering_user_id);
+
+        // Resolve target user from either target_user_id or target_track_id
+        $targetUserId = $request->target_user_id;
+
+        if (!$targetUserId && $request->filled('target_track_id')) {
+            $targetUser = MlmUser::where('track_id', $request->target_track_id)
+                ->orWhere('user_name', $request->target_track_id)
+                ->where('is_deleted', false)
+                ->first();
+
+            if (!$targetUser) {
+                return response()->json([
+                    'status' => false,
+                    'message' => 'Target user not found.',
+                ], 404);
+            }
+
+            $targetUserId = $targetUser->id;
+        }
+
+        if (!$targetUserId) {
+            return response()->json([
+                'status' => false,
+                'message' => 'Target user ID or Track ID is required.',
+            ], 422);
+        }
+
+        if ($targetUserId == $orderingUser->id) {
+            return response()->json([
+                'status' => false,
+                'message' => 'Cannot place order for yourself. Use regular purchase.',
+            ], 422);
+        }
+
+        try {
+            $order = $this->purchaseService->purchase(
+                $targetUserId,
+                $request->product_id,
+                $request->quantity,
+                $orderingUser->id
+            );
+
+            $order->load('user');
+
+            $invoice = Invoice::where('order_id', $order->id)->first();
+
+            return response()->json([
+                'status' => true,
+                'message' => 'Order placed successfully for the user.',
+                'data' => $order,
+                'invoice' => $invoice,
+            ]);
+
+        } catch (\DomainException $e) {
+            return response()->json([
+                'status' => false,
+                'message' => $e->getMessage()
+            ], 422);
+        } catch (\Exception $e) {
+            Log::error('Order For Someone Error: ' . $e->getMessage());
+            return response()->json([
+                'status' => false,
+                'message' => 'Failed to place order.',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
 
     public function history(Request $request)
     {
-        
-        $userId = $request->user_id;
-         try {
-            $orders = Order::with('items')
-                ->where('user_id', $request->user_id)
-                ->latest('order_date')
+        $request->validate([
+            'user_id' => 'required',
+        ]);
+        $user = MlmUser::findOrFail($request->user_id);
+        try {
+            $query = Order::with(['items.product:id,name,image', 'invoice', 'user'])
+                ->where('user_id', $user->id);
+
+            // Filter by status type
+            if ($request->filled('type') && $request->type !== 'all') {
+                $statusMap = [
+                    'completed' => 'COMPLETED',
+                    'pending' => 'PENDING',
+                    'cancelled' => 'CANCELLED',
+                ];
+                $status = $statusMap[$request->type] ?? null;
+                if ($status) {
+                    $query->where('status', $status);
+                }
+            }
+
+            // Date range filter
+            if ($request->filled('from_date')) {
+                $query->whereDate('order_date', '>=', $request->from_date);
+            }
+            if ($request->filled('to_date')) {
+                $query->whereDate('order_date', '<=', $request->to_date);
+            }
+
+            $orders = $query->latest('order_date')
                 ->paginate($request->input('per_page', 10));
 
             return response()->json([
@@ -83,6 +184,29 @@ class OrderController extends Controller
                 'message' => 'Unable to fetch order history.',
             ], 500);
         }
+    }
 
+    public function resolveIdentifier(Request $request)
+    {
+        $request->validate([
+            'identifier' => 'required|string',
+        ]);
+
+        $user = MlmUser::where('track_id', $request->identifier)
+            ->orWhere('user_name', $request->identifier)
+            ->where('is_deleted', false)
+            ->first(['id', 'track_id', 'user_name', 'first_name', 'last_name', 'email']);
+
+        if (!$user) {
+            return response()->json([
+                'success' => false,
+                'message' => 'User not found.',
+            ], 404);
+        }
+
+        return response()->json([
+            'success' => true,
+            'user' => $user,
+        ]);
     }
 }

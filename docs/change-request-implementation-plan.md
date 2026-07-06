@@ -19,13 +19,12 @@
 
 ## Public Identifier System (UUID / Reference Codes)
 
-Internal auto-increment IDs are never exposed to users or APIs. Instead:
+**✅ DECIDED: Removed — now using internal `id` directly instead of `public_id`.**
 
-- Every `mlm_user` gets a **UUID** (`public_id`) and uses `track_id` / `user_name` for referrals
-- All API endpoints accept `public_id` or `track_id` instead of numeric `id`
-- New mapping/helper table if needed: `public_identifiers` — id, model_type, model_id, public_id (UUID), created_at
-- API responses strip internal IDs; return `public_id` and `track_id` instead
-- This applies to: users, orders, invoices, tickets, transactions, fund requests
+- No UUID/public_id columns on any table
+- API endpoints and responses use internal `id` (auto-increment) directly
+- `track_id` and `user_name` are still used for referrals where applicable
+- The `public_identifiers` table and all `public_id` columns have been removed via migration `2026_07_06_000011_drop_public_id_columns`
 
 ---
 
@@ -162,7 +161,7 @@ Each card shows: Current Income (CC), Equivalent Amount (₹), Lifetime Total.
 
 - Enter User ID / Track ID → Search → Select Products → Place Order
 - Invoice for target user, binary/BV updated for target user's chain, income credited to target user's referral chain
-- `POST /order-for-someone` API endpoint (accepts `track_id` or `public_id`)
+- `POST /order-for-someone` API endpoint (accepts `track_id` or user `id`)
 - No direct DB access — user panel proxies entirely through API
 
 ### Module 11: Email Notification System
@@ -274,19 +273,19 @@ Export: CSV (DataTables), PDF (domPDF). Date range filters + summary stats.
 6. `notifications`
 7. `callback_requests`
 8. `referral_income_logs` (optional — may reuse `payout_transactions`)
-9. `public_identifiers` — id, model_type, model_id, public_id (UUID unique), created_at
+9. ~~`public_identifiers` — id, model_type, model_id, public_id (UUID unique), created_at~~ ❌ **Removed**
 
 ### New / Modified Columns
 
 - `mlm_users`:
   - `privacy_policy_accepted` (bool)
   - `terms_accepted` (bool)
-  - `public_id` (UUID, unique, indexed) — public-facing identifier
+- ~~`public_id` (UUID, unique, indexed) — public-facing identifier~~ ❌ **Removed**
   - Remove or hide auto-increment `id` from all API responses
-- `orders`: Add `public_id` (UUID) for order reference in URLs and invoices
-- `invoices`: Add `public_id` (UUID)
-- `grivances` (tickets): Add `public_id` (UUID)
-- `fund_requests`: Add `public_id` (UUID)
+- ~~`orders`: Add `public_id` (UUID) for order reference in URLs and invoices~~ ❌ **Removed**
+- ~~`invoices`: Add `public_id` (UUID)~~ ❌ **Removed**
+- ~~`grivances` (tickets): Add `public_id` (UUID)~~ ❌ **Removed**
+- ~~`fund_requests`: Add `public_id` (UUID)~~ ❌ **Removed**
 
 ### Remove / Refactor
 
@@ -338,17 +337,17 @@ After migrating to pure API:
 | `POST` | `/api/purchase` | Process product purchase (no max limit). Accepts: `product_id`, `quantity`, `payment_mode`. Returns: order, invoice PDF link |
 | `POST` | `/api/order-for-someone` | Order product for another user. Accepts: `target_track_id`, `product_id`, `quantity`, `payment_mode` |
 
-### UUID / Public ID Endpoints
+### ~~UUID / Public ID Endpoints~~ ❌ **Removed**
 
 | Method | Endpoint | Purpose |
 |--------|----------|---------|
-| `GET` | `/api/resolve-identifier` | Resolve `track_id` or `public_id` to user info (used by order-for-someone search) |
-| All existing | All endpoints | Accept `public_id` or `track_id` as alternative to numeric `id` in URLs and params |
+| `GET` | `/api/resolve-identifier` | Resolve `track_id` or user `id` (used by order-for-someone search) |
+| All existing | All endpoints | Accept numeric `id` directly in URLs and params |
 
-### Modified API Responses
+### ~~Modified API Responses~~ ❌ **Removed**
 
-- All JSON responses: replace `id` with `public_id` and `track_id` in user-facing data
-- Paginated responses: add `public_id` field to each record
+- ~~All JSON responses: replace `id` with `public_id` and `track_id` in user-facing data~~
+- ~~Paginated responses: add `public_id` field to each record~~
 
 ---
 

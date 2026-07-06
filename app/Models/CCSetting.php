@@ -17,7 +17,7 @@ class CCSetting extends Model
     // Helper to quickly fetch active conversion rate
     public static function getActiveRate()
 {
-    $setting = static::where('is_active', true)->first();
-    return $setting ? $setting->value : 60.00; // fallback to default
-}
+        $setting = static::where('is_active', true)->first();
+        return $setting ? $setting->value : 1.00; // fallback to default (Phase 2: 1 CC = ₹1)
+    }
 }

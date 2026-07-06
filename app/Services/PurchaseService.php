@@ -8,45 +8,51 @@ use App\Models\OrderItem;
 use App\Models\Product;
 use App\Models\WalletBalance;
 use App\Models\WalletTransaction;
+use App\Models\Invoice;
+use App\Models\Notification;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 class PurchaseService
 {
-    private const MAX_PRODUCTS = 40;
+    private const MIN_PRODUCTS_FOR_ACTIVATION = 2;
 
     public function purchase(
         int $userId,
         int $productId,
-        int $quantity
+        int $quantity,
+        ?int $targetUserId = null
     ): Order {
-        $this->validateUserPosition($userId,);
+        $actualUserId = $targetUserId ?? $userId;
+
+        $this->validateUserPosition($actualUserId);
 
         $product = Product::findOrFail($productId);
 
         $this->validateStock($product, $quantity);
 
-        $this->validatePurchaseLimit(
-            $userId,
-            $quantity
-        );
+        if ($targetUserId) {
+            $this->validateUserExists($targetUserId);
+        }
 
         return DB::transaction(function () use (
-            $userId,
+            $actualUserId,
             $product,
             $quantity,
+            $userId,
+            $targetUserId
         ) {
-
             $totalAmount = $product->price * $quantity;
             $ccPoints = ($product->cc_points ?? 0) * $quantity;
 
             $order = Order::create([
-                'user_id' => $userId,
+                'user_id' => $actualUserId,
                 'package_id' => null,
                 'order_date' => now(),
                 'total_amount' => $totalAmount,
                 'total_cc_points' => $ccPoints,
                 'status' => Order::STATUS_COMPLETED,
-                'order_type' => Order::TYPE_SELF,
+                'order_type' => $targetUserId ? Order::TYPE_ADMIN : Order::TYPE_SELF,
                 'payment_mode' => Order::PAYMENT_WALLET,
                 'note' => "Purchased {$quantity}x {$product->name}",
             ]);
@@ -61,58 +67,72 @@ class PurchaseService
 
             $product->decrement('stock', $quantity);
 
-            MLMTree::where('mlm_user_id', $userId)
+            MLMTree::where('mlm_user_id', $actualUserId)
                 ->update([
                     'business_volume' => DB::raw("business_volume + {$ccPoints}"),
                     'earned_amount' => DB::raw("earned_amount + {$totalAmount}")
                 ]);
 
+            // Check activation (min 2 products purchased)
+            $this->checkAndActivateUser($actualUserId);
 
-            $commission = $this->updateCommissionLevel(
-                $userId,
-                $quantity
-            ); 
+            // Cumulative commission calculation
+            $commission = $this->updateCommissionLevel($actualUserId);
 
             $this->generateDirectIncome(
-                $userId,
+                $actualUserId,
                 $commission,
                 $order,
                 $quantity,
             );
 
+            // Auto-generate invoice
+            $this->generateInvoice($order, $actualUserId, $ccPoints);
+
+            // Create in-app notification
+            $this->createPurchaseNotification($actualUserId, $order, $ccPoints);
 
             return $order->load('items');
         });
     }
 
-    public function updateCommissionLevel(
-        int $userId,
-        int $quantity
-    ): int {
+    private function checkAndActivateUser(int $userId): void
+    {
+        $user = MlmUser::find($userId);
+        if (!$user || $user->is_active) return;
 
+        $totalProducts = OrderItem::whereHas('order', function ($query) use ($userId) {
+            $query->where('user_id', $userId)->where('status', 'COMPLETED');
+        })->sum('quantity');
+
+        if ($totalProducts >= self::MIN_PRODUCTS_FOR_ACTIVATION) {
+            $user->update(['is_active' => true, 'is_verified' => true]);
+        }
+    }
+
+    public function updateCommissionLevel(int $userId): int
+    {
         $user = MlmUser::findOrFail($userId);
 
-        // Already assigned once, do nothing
-        if (!is_null($user->commission_percentage)) {
-            return $user->commission_percentage;
-        }
+        // Calculate total lifetime quantity
+        $totalQuantity = OrderItem::whereHas('order', function ($query) use ($userId) {
+            $query->where('user_id', $userId)->where('status', 'COMPLETED');
+        })->sum('quantity');
 
+        // Commission tiers based on cumulative lifetime purchases
         $percentage = match (true) {
-            $quantity >= 40 => 20,
-            $quantity >= 20 => 18,
-            $quantity >= 12 => 16,
-            $quantity >= 6  => 14,
-            $quantity >= 2  => 12,
-            default         => 10,
+            $totalQuantity >= 40 => 20,
+            $totalQuantity >= 20 => 18,
+            $totalQuantity >= 12 => 16,
+            $totalQuantity >= 6  => 14,
+            $totalQuantity >= 2  => 12,
+            default              => 10,
         };
 
-        $user->update([
-            'commission_percentage' => $percentage
-        ]);
+        $user->update(['commission_percentage' => $percentage]);
 
         return $percentage;
     }
-
 
     public function generateDirectIncome(
         int $userId,
@@ -120,65 +140,92 @@ class PurchaseService
         Order $order,
         int $quantity
     ): void {
-
-        $sponsorId = MLMTree::where(
-            'mlm_user_id',
-            $userId
-        )->value('parent_id');
+        $sponsorId = MLMTree::where('mlm_user_id', $userId)->value('parent_id');
 
         if (!$sponsorId) {
             return;
         }
 
         $incomeAmount = $commission >= 20 ? 200 : 100;
+        $totalAmount = $incomeAmount * $quantity;
 
         $this->creditWallet(
-            userId: $userId,
-            amount: $incomeAmount * $quantity,
+            userId: $sponsorId,
+            amount: $totalAmount,
             type: 'credit',
             referenceId: $order->id,
             description: "Direct income from User {$userId}"
         );
+
+        // Log to income_logs
+        try {
+            app(IncomeLogService::class)->logFromOrder(
+                order: $order,
+                earnerUserId: $sponsorId,
+                incomeType: 'direct',
+                ccAmount: $totalAmount,
+                currencyAmount: $totalAmount,
+                fromUserId: $userId,
+                remarks: "Direct income from User #{$userId} - {$quantity} product(s)"
+            );
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning('IncomeLog failed: ' . $e->getMessage());
+        }
     }
 
     private function validateStock(Product $product, int $quantity): void
     {
         if ($product->stock < $quantity) {
-            throw new \DomainException(
-                'Product not available or insufficient stock'
-            );
+            throw new \DomainException('Product not available or insufficient stock');
         }
     }
 
-    private function validatePurchaseLimit(
-        int $userId,
-        int $quantity
-    ): void {
-
-        $purchased = OrderItem::whereHas('order', function ($query) use ($userId) {
-            $query->where('user_id', $userId);
-        })->sum('quantity');
-
-        if (($purchased + $quantity) > self::MAX_PRODUCTS) {
-            throw new \DomainException(
-                "You can only purchase a maximum of " . self::MAX_PRODUCTS . " products."
-            );
+    private function validateUserExists(int $userId): void
+    {
+        if (!MlmUser::where('id', $userId)->exists()) {
+            throw new \DomainException('Target user not found.');
         }
     }
 
-    
     private function validateUserPosition(int $userId): void
     {
-        $parentId = MlmTree::where('mlm_user_id', $userId)
-            ->value('parent_id');
+        $parentId = MlmTree::where('mlm_user_id', $userId)->value('parent_id');
 
         if ($userId != 1 && !$parentId) {
-    throw new \DomainException(
-        'You are not positioned under any sponsor.'
-    );
-}
+            throw new \DomainException('You are not positioned under any sponsor.');
+        }
     }
 
+    private function generateInvoice(Order $order, int $userId, float $totalCc): void
+    {
+        $invoice = Invoice::create([
+            'order_id' => $order->id,
+            'invoice_number' => 'INV-' . now()->format('Ymd') . '-' . strtoupper(Str::random(6)),
+            'mlm_user_id' => $userId,
+            'invoice_date' => now(),
+            'total_amount' => $order->total_amount,
+            'total_cc' => $totalCc,
+            'status' => 'GENERATED',
+        ]);
+
+        // Generate PDF in background
+        try {
+            app(InvoiceService::class)->generate($order);
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning('Invoice PDF generation failed: ' . $e->getMessage());
+        }
+    }
+
+    private function createPurchaseNotification(int $userId, Order $order, float $ccPoints): void
+    {
+        Notification::create([
+            'mlm_user_id' => $userId,
+            'type' => 'purchase',
+            'title' => 'Product Purchased',
+            'message' => "You have successfully purchased products. Order #{$order->id} - {$ccPoints} CC earned.",
+            'data' => ['order_id' => $order->id, 'cc_points' => $ccPoints],
+        ]);
+    }
 
     public function creditWallet(
         int $userId,
@@ -187,7 +234,6 @@ class PurchaseService
         int $referenceId,
         string $description
     ): void {
-
         $wallet = WalletBalance::firstOrCreate(
             ['user_id' => $userId],
             [

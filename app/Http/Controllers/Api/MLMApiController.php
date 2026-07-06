@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\MlmUser;
 use App\Models\MLMTree;
+use App\Http\Resources\MlmUserResource;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -18,11 +19,11 @@ class MLMApiController extends Controller
     public function getReferrals(Request $request)
     {
         $request->validate([
-            'user_id'  => 'required|exists:mlm_users,id',
+            'user_id'  => 'required',
             'per_page' => 'nullable|integer|min:1|max:100',
         ]);
 
-        $user = MlmUser::find($request->user_id);
+        $user = MlmUser::findOrFail($request->user_id);
 
         $baseQuery = MlmUser::query()
             ->with(['detail'])
@@ -51,7 +52,7 @@ class MLMApiController extends Controller
         return response()->json([
             'success'   => true,
             'message'   => 'Referrals fetched successfully.',
-            'referrals' => $referrals,
+            'referrals' => MlmUserResource::collection($referrals),
             'stats'     => $stats,
         ]);
     }
@@ -61,9 +62,8 @@ class MLMApiController extends Controller
      */
       public function getReferralDownline(Request $request)
     {
-        // ✅ FIX: Get user from request parameter instead of Auth
-        $user = MlmUser::find($request->user_id);
-        if (!$user) return response()->json(['success' => false, 'message' => 'Invalid user_id provided'], 400);
+        $request->validate(['user_id' => 'required']);
+        $user = MlmUser::findOrFail($request->user_id);
         
         $query = MlmUser::with(['sponsor', 'payoutBalance'])
             ->where('sponsor_id', $user->id)
@@ -100,7 +100,7 @@ class MLMApiController extends Controller
                 ->sum('payout_balance_sum_total_earned'),
         ];
         
-        return response()->json(['success' => true, 'downlines' => $downlines, 'stats' => $stats]);
+        return response()->json(['success' => true, 'downlines' => MlmUserResource::collection($downlines), 'stats' => $stats]);
     }
 
     /**
@@ -112,10 +112,14 @@ class MLMApiController extends Controller
             ->whereHas('mlmUser', fn($q) => $q->where('is_verified', true)->where('is_active', true))
             ->whereNull('parent_id')->where('position', 'none')
             ->whereHas('mlmUser', fn($q) => $q->where('user_name', '!=', 'Founder01'))
-            ->latest()->paginate($request->get('per_page', 15));
+            ->latest()->paginate($request->get('per_page', 15))
+            ->through(function ($tree) {
+                return $tree;
+            });
 
         $parents = MlmUser::where('is_active', true)->where('is_deleted', false)
-            ->orderBy('user_name')->get(['id', 'user_name', 'first_name', 'last_name']);
+            ->orderBy('user_name')->get(['id', 'user_name', 'first_name', 'last_name'])
+            ->map(fn($p) => ['id' => $p->id, 'user_name' => $p->user_name, 'first_name' => $p->first_name, 'last_name' => $p->last_name]);
 
         return response()->json(['success' => true, 'holding_users' => $holdingUsers, 'parents' => $parents]);
     }
@@ -126,10 +130,13 @@ class MLMApiController extends Controller
     public function placeUser(Request $request)
     {
         $validated = $request->validate([
-            'user_id' => 'required|exists:mlm_users,id',
-            'parent_id' => 'required|exists:mlm_users,id',
+            'user_id' => 'required',
+            'parent_id' => 'required',
             'position' => 'required|in:left,right',
         ]);
+
+        $validated['user_id'] = MlmUser::where('id', $validated['user_id'])->value('id');
+        $validated['parent_id'] = MlmUser::where('id', $validated['parent_id'])->value('id');
 
         if ($validated['user_id'] == $validated['parent_id']) {
             return response()->json(['success' => false, 'message' => 'Cannot place user under themselves.'], 422);
@@ -266,7 +273,7 @@ class MLMApiController extends Controller
     public function getUserDownline($userId)
     {
         $selectedUser = MlmUser::findOrFail($userId);
-        $rootTree = MLMTree::where('mlm_user_id', $userId)
+        $rootTree = MLMTree::where('mlm_user_id', $selectedUser->id)
             ->with(['leftChild.mlmUser', 'rightChild.mlmUser'])
             ->first();
         

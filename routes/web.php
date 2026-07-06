@@ -81,6 +81,15 @@ use App\Http\Controllers\MLM\ReferralDownlineController;
 use App\Http\Controllers\MLM\RegistrationController;
 use App\Http\Controllers\MLM\TeamGenealogyController;
 use App\Http\Controllers\MLM\WalletController;
+use App\Http\Controllers\MLM\CallbackRequestController;
+use App\Http\Controllers\MLM\RankController;
+use App\Http\Controllers\MLM\UserRankController;
+use App\Http\Controllers\MLM\RewardController;
+use App\Http\Controllers\MLM\UserRewardController;
+use App\Http\Controllers\MLM\PurchaseHistoryController;
+use App\Http\Controllers\MLM\ReferralIncomeLogController;
+use App\Http\Controllers\MLM\NotificationLogController;
+use App\Http\Controllers\MLM\ReportController;
 use App\Http\Controllers\NdisAboutController;
 use App\Http\Controllers\NdisServiceController;
 use App\Http\Controllers\NdisSupportController;
@@ -1049,6 +1058,47 @@ Route::get('/pending-earnings', [WalletController::class, 'pendingEarnings'])
     Route::get('grievances/messages/{id}', [GrievanceCellController::class, 'messages'])->name('grievance.messages');
     Route::post('grievances/reply', [GrievanceCellController::class, 'reply'])->name('grievance.reply');
     Route::post('grievances/status/{id}', [GrievanceCellController::class, 'changeStatus'])->name('grievance.status');
+
+    // ── Callback Requests ──────────────────────────────────────────────
+    Route::get('callback-requests', [CallbackRequestController::class, 'index'])->name('callback-requests.index');
+    Route::post('callback-requests/{id}/status', [CallbackRequestController::class, 'updateStatus'])->name('callback-requests.update-status');
+    Route::post('callback-requests/{id}/notes', [CallbackRequestController::class, 'updateNotes'])->name('callback-requests.update-notes');
+
+    // ── Ranks Management ───────────────────────────────────────────────
+    Route::resource('ranks', RankController::class);
+    Route::post('ranks/{id}/toggle-active', [RankController::class, 'toggleActive'])->name('ranks.toggle-active');
+
+    // ── User Ranks (read-only) ─────────────────────────────────────────
+    Route::get('user-ranks', [UserRankController::class, 'index'])->name('user-ranks.index');
+
+    // ── Rewards ────────────────────────────────────────────────────────
+    Route::resource('rewards', RewardController::class);
+    Route::post('rewards/{id}/toggle-active', [RewardController::class, 'toggleActive'])->name('rewards.toggle-active');
+
+    // ── User Rewards ───────────────────────────────────────────────────
+    Route::get('user-rewards', [UserRewardController::class, 'index'])->name('user-rewards.index');
+    Route::post('user-rewards/{id}/status', [UserRewardController::class, 'updateStatus'])->name('user-rewards.update-status');
+
+    // ── Purchase History ───────────────────────────────────────────────
+    Route::get('purchase-history', [PurchaseHistoryController::class, 'index'])->name('purchase-history.index');
+    Route::get('purchase-history/{id}', [PurchaseHistoryController::class, 'show'])->name('purchase-history.show');
+
+    // ── Referral Income Logs ───────────────────────────────────────────
+    Route::get('referral-income-logs', [ReferralIncomeLogController::class, 'index'])->name('referral-income-logs.index');
+
+    // ── Notification Logs ──────────────────────────────────────────────
+    Route::get('notification-logs', [NotificationLogController::class, 'index'])->name('notification-logs.index');
+
+    // ── Reports ────────────────────────────────────────────────────────
+    Route::get('reports/purchase', [ReportController::class, 'purchaseReport'])->name('reports.purchase');
+    Route::get('reports/income', [ReportController::class, 'incomeReport'])->name('reports.income');
+    Route::get('reports/referral-income', [ReportController::class, 'referralIncomeReport'])->name('reports.referral-income');
+    Route::get('reports/reward-achievement', [ReportController::class, 'rewardAchievementReport'])->name('reports.reward-achievement');
+    Route::get('reports/rank-achievement', [ReportController::class, 'rankAchievementReport'])->name('reports.rank-achievement');
+    Route::get('reports/withdrawal', [ReportController::class, 'withdrawalReport'])->name('reports.withdrawal');
+    Route::get('reports/user-activity', [ReportController::class, 'userActivityReport'])->name('reports.user-activity');
+
+    Route::view('notifications.index', 'notifications.index')->name('notifications.index');
 
 });
 

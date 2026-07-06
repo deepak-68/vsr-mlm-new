@@ -20,10 +20,7 @@ class DatabaseSeeder extends Seeder
             AdminUserSeeder::class,
             RootMlmUserSeeder::class, 
             SeoPagesSeeder::class,
-            // MlmUser::factory()->count(50)->create(),
-        
+            RanksAndRewardsSeeder::class,
         ]);
-
-       
     }
 }
