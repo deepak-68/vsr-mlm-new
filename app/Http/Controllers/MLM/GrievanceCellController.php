@@ -6,7 +6,10 @@ use App\Http\Controllers\Controller;
 use App\Models\GrievanceAttachment;
 use App\Models\GrievanceMassage;
 use App\Models\Grivance;
+use App\Services\MailNotificationService;
+use App\Services\NotificationService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
 use Yajra\DataTables\Facades\DataTables;
@@ -22,6 +25,7 @@ class GrievanceCellController extends Controller
                     'total'       => Grivance::count(),
                     'open'        => Grivance::where('status', 'open')->count(),
                     'in_progress' => Grivance::where('status', 'in_progress')->count(),
+                    'resolved'    => Grivance::where('status', 'resolved')->count(),
                     'closed'      => Grivance::where('status', 'closed')->count(),
                 ]);
             }
@@ -66,6 +70,7 @@ class GrievanceCellController extends Controller
                     $map = [
                         'open'        => ['label' => 'Open',        'class' => 'bg-success'],
                         'in_progress' => ['label' => 'In Progress',  'class' => 'bg-warning text-dark'],
+                        'resolved'    => ['label' => 'Resolved',     'class' => 'bg-info'],
                         'closed'      => ['label' => 'Closed',       'class' => 'bg-danger'],
                     ];
                     $item = $map[$row->status] ?? ['label' => ucfirst($row->status), 'class' => 'bg-secondary'];
@@ -156,6 +161,21 @@ class GrievanceCellController extends Controller
             $ticket->update(['status' => 'in_progress']);
         }
 
+        // In-app notification + email for ticket reply
+        try {
+            $user = $ticket->user;
+            if ($user) {
+                app(NotificationService::class)->createTicketNotification(
+                    $user->id, $ticket->ticket_no, 'Admin replied to your ticket.'
+                );
+                app(MailNotificationService::class)->sendTicketUpdate(
+                    $user, $ticket->ticket_no, 'Admin replied to your ticket.'
+                );
+            }
+        } catch (\Throwable $e) {
+            Log::warning('Ticket reply notification failed: ' . $e->getMessage());
+        }
+
         return response()->json([
             'success' => true,
             'message' => 'Reply sent.',
@@ -181,6 +201,21 @@ class GrievanceCellController extends Controller
         }
 
         $ticket->save();
+
+        // In-app notification + email for status change
+        try {
+            $user = $ticket->user;
+            if ($user) {
+                app(NotificationService::class)->createTicketNotification(
+                    $user->id, $ticket->ticket_no, "Status changed to {$request->status}."
+                );
+                app(MailNotificationService::class)->sendTicketUpdate(
+                    $user, $ticket->ticket_no, "Status changed to {$request->status}."
+                );
+            }
+        } catch (\Throwable $e) {
+            Log::warning('Ticket status notification failed: ' . $e->getMessage());
+        }
 
         return response()->json([
             'success' => true,

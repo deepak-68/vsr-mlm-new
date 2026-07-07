@@ -59,8 +59,21 @@
             <div class="col-xl-3 col-lg-6 col-sm-6 mb-3 mb-xl-0">
                 <div class="card border-0 shadow-sm">
                     <div class="card-body d-flex align-items-center">
+                        <div class="icon-box bg-info bg-opacity-10 rounded-3 p-3 me-3">
+                            <i class="fas fa-check-circle text-info fs-4"></i>
+                        </div>
+                        <div>
+                            <h4 class="mb-0 fw-bold resolved-tickets">0</h4>
+                            <p class="mb-0 text-muted fs-14">Resolved</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-xl-3 col-lg-6 col-sm-6 mb-3 mb-xl-0">
+                <div class="card border-0 shadow-sm">
+                    <div class="card-body d-flex align-items-center">
                         <div class="icon-box bg-danger bg-opacity-10 rounded-3 p-3 me-3">
-                            <i class="fas fa-check-circle text-danger fs-4"></i>
+                            <i class="fas fa-times-circle text-danger fs-4"></i>
                         </div>
                         <div>
                             <h4 class="mb-0 fw-bold closed-tickets">0</h4>
@@ -82,6 +95,7 @@
                         <option value="">All Status</option>
                         <option value="open">Open</option>
                         <option value="in_progress">In Progress</option>
+                        <option value="resolved">Resolved</option>
                         <option value="closed">Closed</option>
                     </select>
                     <select id="filterCategory" class="form-select form-select-sm" style="width:auto;">
@@ -183,6 +197,7 @@ function updateStats() {
         document.querySelector('.total-tickets').textContent = r.total;
         document.querySelector('.open-tickets').textContent = r.open;
         document.querySelector('.inprogress-tickets').textContent = r.in_progress;
+        document.querySelector('.resolved-tickets').textContent = r.resolved;
         document.querySelector('.closed-tickets').textContent = r.closed;
     });
 }

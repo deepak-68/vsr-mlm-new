@@ -20,6 +20,7 @@ class DatabaseSeeder extends Seeder
             AdminUserSeeder::class,
             RootMlmUserSeeder::class, 
             SeoPagesSeeder::class,
+            ContentSeeder::class,
             RanksAndRewardsSeeder::class,
         ]);
     }

@@ -104,7 +104,7 @@ class GrievanceController extends Controller
                     'sender_id'   => $msg->sender_id,
                     'sender_name' => $msg->sender
                         ? trim($msg->sender->first_name . ' ' . $msg->sender->last_name)
-                        : 'Unknown',
+                        : 'Admin',
                     'is_user'     => $msg->sender_id === $ticket->user_id,
                     'attachments' => $msg->attachments->map(fn($a) => [
                         'url' => asset('storage/' . $a->file_path),
@@ -290,6 +290,59 @@ class GrievanceController extends Controller
                 'success' => false,
                 'message' => 'Failed to fetch Outbox',
                 'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * GET /api/grievances/inbox?user_id=&status=
+     * List tickets for a user that have at least one admin reply.
+     */
+    public function inbox(Request $request)
+    {
+        $request->validate([
+            'user_id' => 'required',
+            'status'  => 'nullable|in:open,in_progress,resolved,closed',
+        ]);
+
+        try {
+            $query = Grivance::where('user_id', $request->user_id)
+                ->whereHas('messages', function ($q) use ($request) {
+                    $q->where('sender_id', '!=', $request->user_id);
+                });
+
+            if ($request->filled('status')) {
+                $query->where('status', $request->status);
+            }
+
+            $tickets = $query->orderBy('created_at', 'desc')->get();
+
+            $data = $tickets->map(function ($ticket) use ($request) {
+                $adminReply = GrievanceMassage::where('grivance_id', $ticket->id)
+                    ->where('sender_id', '!=', $request->user_id)
+                    ->latest()
+                    ->first();
+
+                return [
+                    'id'         => $ticket->id,
+                    'ticket_no'  => $ticket->ticket_no,
+                    'subject'    => $ticket->subject,
+                    'category'   => $ticket->category,
+                    'status'     => $ticket->status,
+                    'replied_at' => $adminReply?->created_at,
+                    'updated_at' => $ticket->updated_at,
+                    'admin_reply' => $adminReply?->message,
+                ];
+            });
+
+            return response()->json([
+                'success' => true,
+                'data'    => $data,
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to fetch inbox.',
             ], 500);
         }
     }

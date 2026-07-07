@@ -2,11 +2,13 @@
 
 namespace App\Services;
 
+use App\Models\CCSetting;
 use App\Models\Order;
 use App\Models\MLMTree;
 use App\Models\MlmUser;
 use App\Models\WalletBalance;
 use App\Models\WalletTransaction;
+use App\Services\NotificationService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -15,6 +17,7 @@ class IncomeService
     public function __construct(
         private readonly PayoutService $payoutService,
         private readonly IncomeLogService $incomeLogService,
+        private readonly NotificationService $notificationService,
     ) {}
 
     public function processDirectIncome(Order $order, int $quantity, int $commission): array
@@ -26,8 +29,10 @@ class IncomeService
             return ['sponsor_id' => null, 'amount' => 0];
         }
 
-        $incomePerProduct = $commission >= 20 ? 200 : 100;
-        $totalAmount = $incomePerProduct * $quantity;
+        // CC points from order × conversion rate (CC × ₹)
+        $orderCC = (float) ($order->total_cc_points ?? 0);
+        $ccRate = CCSetting::getActiveRate();
+        $totalAmount = $orderCC * $ccRate;
 
         $this->creditWallet(
             userId: $sponsorId,
@@ -40,19 +45,22 @@ class IncomeService
             order: $order,
             earnerUserId: $sponsorId,
             incomeType: 'direct',
-            ccAmount: $totalAmount,
+            ccAmount: $orderCC,
             currencyAmount: $totalAmount,
             fromUserId: $order->user_id,
             remarks: "Direct income from User #{$order->user_id} - {$quantity} product(s)"
         );
 
+        $this->notificationService->createIncomeNotification($sponsorId, $totalAmount, 'Direct Income');
+
         Log::info('Direct income processed', [
-            'order_id'     => $order->id,
-            'sponsor_id'   => $sponsorId,
-            'amount'       => $totalAmount,
-            'commission'   => $commission,
-            'income_per'   => $incomePerProduct,
-            'quantity'     => $quantity,
+            'order_id'      => $order->id,
+            'sponsor_id'    => $sponsorId,
+            'total_amount'  => $totalAmount,
+            'order_cc'      => $orderCC,
+            'cc_rate'       => $ccRate,
+            'commission'    => $commission,
+            'quantity'      => $quantity,
         ]);
 
         return [
@@ -69,6 +77,8 @@ class IncomeService
         }
 
         $result = $this->payoutService->processPairMatching($user, $orderCC);
+
+        $this->notificationService->createIncomeNotification($userId, $orderCC, 'Matching Income');
 
         Log::info('Binary income processed', [
             'order_id' => $order->id,

@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Models\MlmUser;
 use App\Models\MLMTree;
 use App\Http\Resources\MlmUserResource;
+use App\Services\MailNotificationService;
+use App\Services\NotificationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -239,6 +241,22 @@ class MLMApiController extends Controller
             }
             
             $user->update(['position_in_sponsor_leg' => $validated['position']]);
+
+            // In-app notification for binary position
+            try {
+                app(NotificationService::class)->create($user->id, 'registration', 'Binary Position Assigned',
+                    "You have been placed in the {$validated['position']} leg.");
+            } catch (\Throwable $e) {
+                Log::warning('Binary position notification failed: ' . $e->getMessage());
+            }
+
+            // Binary position email
+            try {
+                $parentName = $parentTree->mlmUser?->user_name ?? null;
+                app(MailNotificationService::class)->sendBinaryPosition($user, $validated['position'], $parentName);
+            } catch (\Throwable $e) {
+                Log::warning('Binary position email failed: ' . $e->getMessage());
+            }
 
             DB::commit();
             return response()->json(['success' => true, 'message' => "User placed in {$validated['position']} leg!"]);

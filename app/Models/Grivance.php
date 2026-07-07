@@ -40,6 +40,6 @@ class Grivance extends Model
 
     public function messages()
     {
-        return $this->hasMany(GrievanceMassage::class, 'grievance_id');
+        return $this->hasMany(GrievanceMassage::class, 'grivance_id');
     }
 }

@@ -48,7 +48,7 @@
         <div class="stat-value" style="font-size: 13px;">{{ $stats['joined_date'] ?? 'N/A' }}</div>
     </div>
     <div class="stat-card">
-        <div class="stat-label">Self CC</div>
+        <div class="stat-label">CC Balance</div>
         <div class="stat-value">{{ $stats['personal_bv'] ?? 0 }}</div>
     </div>
     <div class="stat-card">

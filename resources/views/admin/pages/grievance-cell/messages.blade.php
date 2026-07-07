@@ -32,6 +32,7 @@
                 $statusMap = [
                     'open'        => ['label' => 'Open',       'class' => 'bg-success'],
                     'in_progress' => ['label' => 'In Progress', 'class' => 'bg-warning text-dark'],
+                    'resolved'    => ['label' => 'Resolved',    'class' => 'bg-info'],
                     'closed'      => ['label' => 'Closed',      'class' => 'bg-danger'],
                 ];
                 $s = $statusMap[$ticket->status] ?? ['label' => ucfirst($ticket->status), 'class' => 'bg-secondary'];
@@ -55,6 +56,12 @@
                         <a class="dropdown-item change-status-btn" href="#"
                            data-ticket="{{ $ticket->id }}" data-status="in_progress">
                             <span class="badge bg-warning text-dark me-1">In Progress</span> In Progress
+                        </a>
+                    </li>
+                    <li>
+                        <a class="dropdown-item change-status-btn" href="#"
+                           data-ticket="{{ $ticket->id }}" data-status="resolved">
+                            <span class="badge bg-info me-1">Resolved</span> Resolved
                         </a>
                     </li>
                     <li>

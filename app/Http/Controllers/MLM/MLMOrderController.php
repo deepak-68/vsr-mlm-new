@@ -91,11 +91,8 @@ class MLMOrderController extends Controller
             ]);
             $order->items()->createMany($orderItems);
 
-            // 💰 Direct Income Calculation
-            $ccValueInRupees = $totalCC * $ccRate;
-            $bonusPerBottle = ($user->commission_percentage == 20) ? 200 : 100;
-            $extraBonus = $totalQuantity * $bonusPerBottle;
-            $totalDirectIncome = $ccValueInRupees + $extraBonus;
+            // 💰 Direct Income = CC × rate
+            $totalDirectIncome = $totalCC * $ccRate;
 
             $balance = \App\Models\PayoutBalance::firstOrNew(['mlm_user_id' => $user->id]);
             $balance->available_balance += $totalDirectIncome;
@@ -110,22 +107,8 @@ class MLMOrderController extends Controller
                 'currency_amount' => $totalDirectIncome,
                 'status' => 'credited',
                 'description' => "Direct income from order #{$order->id}",
-                'meta' => ['cc_rate' => $ccRate, 'bonus_per_bottle' => $bonusPerBottle],
+                'meta' => ['cc_rate' => $ccRate],
             ]);
-
-            // 🔄 Auto-upgrade tier
-            $newLifetimeTotal = $lifetimePurchased + $totalItemsInCart;
-            if ($newLifetimeTotal >= 20 && $user->commission_percentage < 20) {
-                $user->update(['commission_percentage' => 20]);
-            }
-            if ($newLifetimeTotal >= 40) {
-                $balance->is_payout_eligible = true;
-                $balance->save();
-            }
-
-            // 🎯 PROCESS PAIR MATCHING (Via Service)
-            $payoutService = new PayoutService();
-            $payoutService->processPairMatching($user, $totalCC);
 
             DB::commit();
             return back()->with('success', "✅ Order #{$order->id} created! Direct: ₹".number_format($totalDirectIncome, 2));

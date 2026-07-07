@@ -9,7 +9,10 @@ use App\Models\FundSummary;
 use App\Models\FundTransfer;
 use App\Http\Resources\MlmUserResource;
 use App\Models\MlmUser;
+use App\Services\MailNotificationService;
+use App\Services\NotificationService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 
 class FundRequestApiController extends Controller
@@ -20,7 +23,7 @@ class FundRequestApiController extends Controller
     public function index(Request $request)
     {
         try {
-            $query = FundRequest::with(['user', 'bankDetail']);
+            $query = FundRequest::with(['user', 'bankDetail', 'userBankDetail']);
 
             // Filter by user
             if ($request->filled('user_id')) {
@@ -80,6 +83,21 @@ class FundRequestApiController extends Controller
                     'credit' => $fundRequest->amount,
                     'debit' => 0,
                 ]);
+            }
+
+            // In-app notification + email for withdrawal status
+            try {
+                $user = $fundRequest->user;
+                if ($user) {
+                    app(NotificationService::class)->createWithdrawalNotification(
+                        $user->id, $validated['status'], $validated['admin_remark'] ?? ''
+                    );
+                    app(MailNotificationService::class)->sendWithdrawalUpdate(
+                        $user, $fundRequest->amount, $validated['status']
+                    );
+                }
+            } catch (\Throwable $e) {
+                Log::warning('Withdrawal notification failed: ' . $e->getMessage());
             }
 
             return response()->json([
@@ -147,10 +165,13 @@ class FundRequestApiController extends Controller
                 $imagePath = $request->file('hash_code')->store('fund-requests', 'public');
             }
 
+            $userBankDetail = \App\Models\UserBankDetail::where('user_id', $userId)->first();
+
             $fundRequest = FundRequest::create([
                 'user_id' => $userId,
                 'username' => $validated['username'],
                 'bank_detail_id' => $validated['bank_detail_id'],
+                'user_bank_detail_id' => $userBankDetail?->id,
                 'payment_mode' => $validated['payment_mode'],
                 'amount' => $validated['amount'],
                 'remark' => $validated['remark'] ?? null,

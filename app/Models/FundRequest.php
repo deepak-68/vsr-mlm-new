@@ -15,6 +15,7 @@ class FundRequest extends Model
         'user_id',
         'username',
         'bank_detail_id',
+        'user_bank_detail_id',
         'payment_mode',
         'amount',
         'remark',
@@ -40,5 +41,10 @@ class FundRequest extends Model
     public function bankDetail()
     {
         return $this->belongsTo(AdminBankDetail::class, 'bank_detail_id');
+    }
+
+    public function userBankDetail()
+    {
+        return $this->belongsTo(UserBankDetail::class, 'user_bank_detail_id');
     }
 }

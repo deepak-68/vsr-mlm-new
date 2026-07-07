@@ -104,6 +104,12 @@
                                     </div>
                                 </div>
                                 <div class="col-md-12 mb-3">
+                                    <label class="form-label">User Bank Account (for Payout)</label>
+                                    <div id="userBankDetail" class="p-3 bg-light rounded">
+                                        <p class="text-muted mb-0">Loading...</p>
+                                    </div>
+                                </div>
+                                <div class="col-md-12 mb-3">
                                     <label for="remarks" class="form-label">Remarks</label>
                                     <textarea class="form-control mt-2" id="remarks" name="remarks" rows="3" placeholder="Enter remarks here..."></textarea>
                                 </div>
@@ -200,6 +206,21 @@
                         $('input[name="status"][value="' + response.status + '"]').prop('checked', true);
                         $('#remarks').val(response.remark);
                         $('.update-payout-request').attr('data-id', requestId);
+
+                        var ubd = response.user_bank_detail;
+                        var ubdHtml = '';
+                        if (ubd) {
+                            ubdHtml = '<strong>' + (ubd.account_holder_name || '') + '</strong><br>'
+                                + (ubd.bank_name || '') + ' - ' + (ubd.account_number || '') + '<br>'
+                                + 'IFSC: ' + (ubd.ifsc_code || '') + '<br>';
+                            if (ubd.bank_attachment) {
+                                ubdHtml += '<a href="/storage/' + ubd.bank_attachment + '" target="_blank" class="btn btn-sm btn-outline-primary mt-2"><i class="fas fa-image me-1"></i>View Attachment</a>';
+                            }
+                        } else {
+                            ubdHtml = '<span class="text-muted">User has not provided bank details.</span>';
+                        }
+                        $('#userBankDetail').html(ubdHtml);
+
                         $('#payoutDetailsModal').modal('show');
                     },
                     error: function (xhr) {

@@ -46,7 +46,7 @@ class MLMPayoutController extends Controller
     {
         if ($request->ajax()) {
 
-            $query = FundRequest::with(['user', 'bankDetail'])
+            $query = FundRequest::with(['user', 'bankDetail', 'userBankDetail'])
                 ->orderByDesc('created_at');
 
             return DataTables::of($query)
@@ -124,7 +124,7 @@ class MLMPayoutController extends Controller
 
     public function showPayoutRequest($id)
     {
-        $request = FundRequest::with(['user', 'bankDetail'])->findOrFail($id);
+        $request = FundRequest::with(['user', 'bankDetail', 'userBankDetail'])->findOrFail($id);
         return response()->json($request);
     }
 
@@ -253,7 +253,7 @@ class MLMPayoutController extends Controller
             'status' => 'required|in:pending,approved,rejected',
         ]);
 
-        $fundRequest = FundRequest::with(['user', 'bankDetail'])->findOrFail($id);
+        $fundRequest = FundRequest::with(['user', 'bankDetail', 'userBankDetail'])->findOrFail($id);
         $fundRequest->update(['status' => $v['status']]);
 
         if ($v['status'] === 'approved') {

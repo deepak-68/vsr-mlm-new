@@ -14,6 +14,7 @@ use App\Models\WalletTransaction;
 use App\Models\UserReward;
 use App\Models\UserRank;
 use App\Models\Rank;
+use App\Services\SelfCCService;
 use App\Http\Resources\MlmUserResource;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -40,9 +41,8 @@ class DashboardController extends Controller
         // Direct business
         $directBusiness = MlmUser::where('sponsor_id', $userId)->where('is_deleted', 0)->count();
 
-        // Self CC (total CC from completed orders)
-        $selfCC = OrderItem::whereHas('order', fn($q) => $q->where('user_id', $userId)->where('status', 'COMPLETED'))
-            ->sum('cc_points');
+        // Referral CC (total CC earned as sponsor from downline purchases)
+        $referralCC = app(SelfCCService::class)->getTotalCcAsSponsor($userId);
 
         // User rank
         $userRank = UserRank::where('mlm_user_id', $userId)->where('is_current', true)
@@ -128,7 +128,7 @@ class DashboardController extends Controller
                 'left_team' => $leftTeam,
                 'right_team' => $rightTeam,
                 'direct_business' => $directBusiness,
-                'self_cc' => $selfCC,
+                'self_cc' => $referralCC,
                 'fund_wallet' => $fundWallet,
                 'current_left_cc' => $currentLeftCC,
                 'current_right_cc' => $currentRightCC,

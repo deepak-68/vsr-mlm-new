@@ -17,9 +17,6 @@ class OrderConfirmationService
     public function __construct(
         private readonly SelfCCService $selfCCService,
         private readonly IncomeService $incomeService,
-        private readonly RankService $rankService,
-        private readonly RewardService $rewardService,
-        private readonly PayoutService $payoutService,
         private readonly NotificationService $notificationService,
         private readonly HistoryService $historyService,
         private readonly PurchaseService $purchaseService,
@@ -29,9 +26,6 @@ class OrderConfirmationService
             'order_confirmed' => fn(Order $o) => $this->stepConfirmOrder($o),
             'self_cc'         => fn(Order $o) => $this->stepAccumulateSelfCC($o),
             'direct_income'   => fn(Order $o) => $this->stepDirectIncome($o),
-            'binary_income'   => fn(Order $o) => $this->stepBinaryIncome($o),
-            'rank_upgrade'    => fn(Order $o) => $this->stepRankUpgrade($o),
-            'reward'          => fn(Order $o) => $this->stepReward($o),
             'invoice'         => fn(Order $o) => $this->stepInvoice($o),
             'notification'    => fn(Order $o) => $this->stepNotification($o),
             'email_invoice'   => fn(Order $o) => $this->stepEmailInvoice($o),
@@ -128,59 +122,6 @@ class OrderConfirmationService
         $quantity = (int) $order->items->sum('quantity');
 
         return $this->incomeService->processDirectIncome($order, $quantity, $commission);
-    }
-
-    private function stepBinaryIncome(Order $order): array
-    {
-        $cc = $this->selfCCService->getOrderCC($order);
-        return $this->incomeService->processBinaryIncome($order, $cc, $order->user_id);
-    }
-
-    private function stepRankUpgrade(Order $order): array
-    {
-        $ccRecipient = $this->selfCCService->getCcRecipient($order);
-        $userId = $ccRecipient ? $ccRecipient->id : $order->user_id;
-
-        $changed = $this->rankService->checkAndUpgradeRank($userId);
-
-        if ($changed) {
-            $rank = \App\Models\Rank::find($changed);
-            $this->notificationService->createRankNotification($userId, $rank->name ?? 'New Rank');
-
-            return [
-                'upgraded'  => true,
-                'user_id'   => $userId,
-                'rank_id'   => $changed,
-                'rank_name' => $rank?->name,
-            ];
-        }
-
-        return ['upgraded' => false, 'user_id' => $userId];
-    }
-
-    private function stepReward(Order $order): array
-    {
-        $ccRecipient = $this->selfCCService->getCcRecipient($order);
-        $userId = $ccRecipient ? $ccRecipient->id : $order->user_id;
-
-        $latestRank = \App\Models\UserRank::where('mlm_user_id', $userId)
-            ->where('is_current', true)
-            ->first();
-
-        if (!$latestRank) {
-            return ['assigned' => false, 'reason' => 'No current rank found'];
-        }
-
-        $this->rewardService->checkAndAssignReward($userId, $latestRank->rank_id);
-
-        $reward = \App\Models\Reward::where('rank_id', $latestRank->rank_id)->first();
-
-        return [
-            'assigned'    => (bool) $reward,
-            'user_id'     => $userId,
-            'rank_id'     => $latestRank->rank_id,
-            'reward_name' => $reward?->name,
-        ];
     }
 
     private function stepInvoice(Order $order): array

@@ -45,6 +45,7 @@ use App\Http\Controllers\Api\supportIndependentApiController;
 use App\Http\Controllers\Api\SystemApiController;
 use App\Http\Controllers\Api\TeamApiController;
 use App\Http\Controllers\Api\TermsApiController;
+use App\Http\Controllers\Api\UserBankDetailApiController;
 use App\Http\Controllers\Api\UserRegisterController;
 use App\Http\Controllers\Api\WalletController;
 use App\Http\Controllers\Api\WalletIncomeApiController;
@@ -163,9 +164,10 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('reply-ticket', [GrievanceController::class, 'replyTicket']);
     Route::get('ticket-messages/{id}', [GrievanceController::class, 'getMessages']);
     Route::put('ticket-status/{id}', [GrievanceController::class, 'changeStatus']);
-    Route::get('my-tickets', [GrievanceController::class, 'myTickets']);
-    Route::get('outbox', [GrievanceController::class, 'outbox']);
-    Route::post('schedule-callback', [GrievanceController::class, 'scheduleCallback']);
+    Route::get('my-tickets',           [GrievanceController::class, 'myTickets']);
+    Route::get('outbox',               [GrievanceController::class, 'outbox']);
+    Route::get('grievances/inbox',     [GrievanceController::class, 'inbox']);
+    Route::post('schedule-callback',   [GrievanceController::class, 'scheduleCallback']);
 
     // WhatsApp
     Route::get('whatsapp-number', [WhatsAppController::class, 'getNumber']);
@@ -183,8 +185,13 @@ Route::middleware('auth:sanctum')->group(function () {
     // Wallet & Income
     Route::get('direct-income', [WalletController::class, 'directIncome']);
     Route::get('matching-income', [WalletController::class, 'matchingIncome']);
+    Route::get('wallet', [WalletController::class, 'userWallet']);
     Route::get('income-log', [IncomeLogController::class, 'index']);
     Route::get('downline-rank', [WalletIncomeApiController::class, 'getDownlineRank']);
+
+    // User Bank Details
+    Route::get('/user-bank-detail', [UserBankDetailApiController::class, 'show']);
+    Route::post('/user-bank-detail', [UserBankDetailApiController::class, 'store']);
 
     // Notifications
     Route::get('notifications', [NotificationController::class, 'index']);

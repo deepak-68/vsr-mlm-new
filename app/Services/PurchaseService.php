@@ -1,6 +1,7 @@
 <?php
 namespace App\Services;
 
+use App\Models\CCSetting;
 use App\Models\MLMTree;
 use App\Models\MlmUser;
 use App\Models\Order;
@@ -102,6 +103,17 @@ class PurchaseService
                 // Auto-generate invoice
                 $this->generateInvoice($order, $userId, $ccPoints);
 
+                // Send invoice email to the paying user
+                try {
+                    $invoice = Invoice::where('order_id', $order->id)->first();
+                    $recipient = MlmUser::find($userId);
+                    if ($invoice && $recipient) {
+                        app(MailNotificationService::class)->sendInvoiceToUser($recipient, $invoice);
+                    }
+                } catch (\Throwable $e) {
+                    \Illuminate\Support\Facades\Log::warning('Invoice email failed: ' . $e->getMessage());
+                }
+
                 // Create in-app notification for both payer and recipient
                 $this->createPurchaseNotification($actualUserId, $order, $ccPoints);
                 if ($userId !== $actualUserId) {
@@ -163,8 +175,10 @@ class PurchaseService
             return;
         }
 
-        $incomeAmount = $commission >= 20 ? 200 : 100;
-        $totalAmount = $incomeAmount * $quantity;
+        // CC points from order × conversion rate (CC × ₹)
+        $orderCC = (float) ($order->total_cc_points ?? 0);
+        $ccRate = CCSetting::getActiveRate();
+        $totalAmount = $orderCC * $ccRate;
 
         $this->creditWallet(
             userId: $sponsorId,
@@ -180,7 +194,7 @@ class PurchaseService
                 order: $order,
                 earnerUserId: $sponsorId,
                 incomeType: 'direct',
-                ccAmount: $totalAmount,
+                ccAmount: $orderCC,
                 currencyAmount: $totalAmount,
                 fromUserId: $userId,
                 remarks: "Direct income from User #{$userId} - {$quantity} product(s)"

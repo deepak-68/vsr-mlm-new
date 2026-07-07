@@ -8,6 +8,8 @@ use App\Mail\MlmActivationMail;
 use App\Mail\MlmUserWelcomeMail;
 use App\Models\MLMTree;
 use App\Models\MlmUser;
+use App\Services\MailNotificationService;
+use App\Services\NotificationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
@@ -114,7 +116,21 @@ class UserRegisterController extends Controller
                 'email' => $user->email,
                 'error' => $e->getMessage(),
             ]);
-        } 
+        }
+
+        // In-app registration notification
+        try {
+            app(NotificationService::class)->createRegistrationNotification($user->id);
+        } catch (\Throwable $e) {
+            Log::warning('Registration notification failed: ' . $e->getMessage());
+        }
+
+        // Sponsor notification email
+        try {
+            app(MailNotificationService::class)->sendSponsorNotification($sponsor, $user);
+        } catch (\Throwable $e) {
+            Log::warning('Sponsor notification email failed: ' . $e->getMessage());
+        }
 
         return response()->json([
             'status' => true,
