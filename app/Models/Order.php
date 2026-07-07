@@ -10,6 +10,7 @@ class Order extends Model
     
     protected $fillable = [
         'user_id',
+        'purchased_for_user_id',
         'package_id',
         'order_date',
         'total_amount',
@@ -19,10 +20,14 @@ class Order extends Model
         'refund_policy',
         'payment_mode',
         'note',
+        'transaction_number',
+        'payment_proof',
+        'order_number',
     ];
 
     public const STATUS_PENDING = 'PENDING';
     public const STATUS_COMPLETED = 'COMPLETED';
+    public const STATUS_CONFIRMED = 'CONFIRMED';
     public const STATUS_CANCELLED = 'CANCELLED';
 
     public const TYPE_SELF = 'SELF';
@@ -30,6 +35,7 @@ class Order extends Model
 
     public const PAYMENT_WALLET = 'WALLET';
     public const PAYMENT_CASH = 'CASH';
+    public const PAYMENT_MANUAL = 'MANUAL';
 
     protected $casts = [
         'total_amount' => 'decimal:2',
@@ -37,9 +43,24 @@ class Order extends Model
         'order_date' => 'datetime',
     ];
 
+    protected static function boot()
+    {
+        parent::boot();
+        static::creating(function ($order) {
+            if (empty($order->order_number)) {
+                $order->order_number = 'ORD-' . now()->format('Ymd') . '-' . strtoupper(\Illuminate\Support\Str::random(6));
+            }
+        });
+    }
+
     public function user()
     {
         return $this->belongsTo(MlmUser::class, 'user_id');
+    }
+
+    public function purchasedForUser()
+    {
+        return $this->belongsTo(MlmUser::class, 'purchased_for_user_id');
     }
 
     public function items()

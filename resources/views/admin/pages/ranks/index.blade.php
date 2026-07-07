@@ -63,8 +63,8 @@
                         <input type="text" class="form-control" name="name" id="rankName" required>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label">Slug <span class="text-danger">*</span></label>
-                        <input type="text" class="form-control" name="slug" id="rankSlug" required>
+                        <label class="form-label">Slug</label>
+                        <input type="text" class="form-control" name="slug" id="rankSlug" readonly>
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Required Self CC <span class="text-danger">*</span></label>
@@ -119,6 +119,13 @@ $(document).ready(function () {
         ]
     });
 
+    function slugify(text) {
+        return text.toLowerCase()
+            .replace(/[^\w\s-]/g, '')
+            .replace(/[\s_]+/g, '-')
+            .replace(/^-+|-+$/g, '');
+    }
+
     function resetForm() {
         $('#rankForm')[0].reset();
         $('#rankForm input[name="_method"]').val('POST');
@@ -126,7 +133,14 @@ $(document).ready(function () {
         $('#modalTitle').text('Add Rank');
         $('#rankSaveBtn').text('Save');
         $('#rankActive').prop('checked', true);
+        $('#rankSlug').val('').prop('readonly', false);
     }
+
+    $('#rankName').on('input', function () {
+        if (!$('#rankId').val()) {
+            $('#rankSlug').val(slugify($(this).val()));
+        }
+    });
 
     $('#rankModal').on('hidden.bs.modal', resetForm);
 
@@ -134,7 +148,7 @@ $(document).ready(function () {
         const btn = $(this);
         $('#rankId').val(btn.data('id'));
         $('#rankName').val(btn.data('name'));
-        $('#rankSlug').val(btn.data('slug'));
+        $('#rankSlug').val(btn.data('slug')).prop('readonly', true);
         $('#rankRequiredCC').val(btn.data('required_self_cc'));
         $('#rankSortOrder').val(btn.data('sort_order'));
         $('#rankRewardDesc').val(btn.data('reward_description'));
@@ -192,7 +206,7 @@ $(document).ready(function () {
         }).then((result) => {
             if (result.isConfirmed) {
                 $.ajax({
-                    url: window.ranksIndexRoute + '/toggle-active/' + id,
+                    url: window.ranksIndexRoute + '/' + id + '/toggle-active',
                     method: 'POST',
                     data: { _token: window.csrfToken },
                     success: function (response) {

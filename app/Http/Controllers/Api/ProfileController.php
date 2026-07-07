@@ -26,6 +26,10 @@ class ProfileController extends Controller
                 : null;
         }
 
+        $user->profile_image = !empty($user->detail?->profile_image)
+            ? $user->detail->profile_image
+            : null;
+
         return response()->json([
             'status' => true,
             'message' => 'Profile fetched successfully',
@@ -161,11 +165,14 @@ class ProfileController extends Controller
             'profile_image' => 'required|image|mimes:jpeg,png,jpg|max:2048',
         ]);
 
-        $user = MlmUser::findOrFail($request->user_id);
+        $user = MlmUser::with('detail')->findOrFail($request->user_id);
 
-        // Delete old image
-        if ($user->profile_image && Storage::disk('public')->exists($user->profile_image)) {
-            Storage::disk('public')->delete($user->profile_image);
+        // Delete old image from storage
+        if ($user->detail && $user->detail->profile_image) {
+            $oldPath = $user->detail->profile_image;
+            if (Storage::disk('public')->exists($oldPath)) {
+                Storage::disk('public')->delete($oldPath);
+            }
         }
 
         // Upload new image
@@ -181,7 +188,7 @@ class ProfileController extends Controller
             'status' => true,
             'message' => 'Profile image updated successfully.',
             'image_url' => asset('storage/' . $imagePath),
-            'data' => $user->profile_image
+            'data' => $imagePath,
         ]);
     }
 }

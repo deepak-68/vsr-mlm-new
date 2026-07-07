@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\AdminBankDetail;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 
 class BankAccountSettingController extends Controller
 {
@@ -46,7 +47,7 @@ class BankAccountSettingController extends Controller
 
     public function update(Request $request, $bankDetailId)
     {
-        $bankDetail = AdminBankDetail::findOrFail($bankDetailId);   
+        $bankDetail = AdminBankDetail::findOrFail($bankDetailId);
         $validated = $request->validate([
             'mode_name' => 'required|string|max:255',
             'address' => 'required|string|max:255',
@@ -57,15 +58,24 @@ class BankAccountSettingController extends Controller
             'image' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
         ]);
 
-            $bankDetail = $bankDetail->update([
-                    'mode_name' => $validated['mode_name'],
-                    'address' => $validated['address'],
-                    'account_no' => $validated['account_no'],
-                    'bank_name' => $validated['bank_name'],
-                    'ifsc_code' => $validated['ifsc_code'],
-                    'is_active' => $validated['is_active'],
-                    //  'image' => $validated['image'] ?? $bankDetail->image, // Keep
-                ]);
+        if ($request->hasFile('image')) {
+            if ($bankDetail->image && Storage::disk('public')->exists($bankDetail->image)) {
+                Storage::disk('public')->delete($bankDetail->image);
+            }
+            $imagePath = $request->file('image')->store('bank-details', 'public');
+        } else {
+            $imagePath = $bankDetail->image;
+        }
+
+        $bankDetail->update([
+            'mode_name' => $validated['mode_name'],
+            'address' => $validated['address'],
+            'account_no' => $validated['account_no'],
+            'bank_name' => $validated['bank_name'],
+            'ifsc_code' => $validated['ifsc_code'],
+            'is_active' => $validated['is_active'],
+            'image' => $imagePath,
+        ]);
 
         return back()->with('success', 'Bank account updated successfully.');
     }

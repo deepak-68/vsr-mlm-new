@@ -15,16 +15,91 @@
             </ol>
         </div>
 
+        {{-- ── KPI Stats Cards ────────────────────────────────── --}}
+        <div class="row mb-4" id="grievanceStats">
+            <div class="col-xl-3 col-lg-6 col-sm-6 mb-3 mb-xl-0">
+                <div class="card border-0 shadow-sm">
+                    <div class="card-body d-flex align-items-center">
+                        <div class="icon-box bg-primary bg-opacity-10 rounded-3 p-3 me-3">
+                            <i class="fas fa-ticket-alt text-primary fs-4"></i>
+                        </div>
+                        <div>
+                            <h4 class="mb-0 fw-bold total-tickets">0</h4>
+                            <p class="mb-0 text-muted fs-14">Total Tickets</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-xl-3 col-lg-6 col-sm-6 mb-3 mb-xl-0">
+                <div class="card border-0 shadow-sm">
+                    <div class="card-body d-flex align-items-center">
+                        <div class="icon-box bg-success bg-opacity-10 rounded-3 p-3 me-3">
+                            <i class="fas fa-envelope-open-text text-success fs-4"></i>
+                        </div>
+                        <div>
+                            <h4 class="mb-0 fw-bold open-tickets">0</h4>
+                            <p class="mb-0 text-muted fs-14">Open</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-xl-3 col-lg-6 col-sm-6 mb-3 mb-xl-0">
+                <div class="card border-0 shadow-sm">
+                    <div class="card-body d-flex align-items-center">
+                        <div class="icon-box bg-warning bg-opacity-10 rounded-3 p-3 me-3">
+                            <i class="fas fa-spinner text-warning fs-4"></i>
+                        </div>
+                        <div>
+                            <h4 class="mb-0 fw-bold inprogress-tickets">0</h4>
+                            <p class="mb-0 text-muted fs-14">In Progress</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-xl-3 col-lg-6 col-sm-6 mb-3 mb-xl-0">
+                <div class="card border-0 shadow-sm">
+                    <div class="card-body d-flex align-items-center">
+                        <div class="icon-box bg-danger bg-opacity-10 rounded-3 p-3 me-3">
+                            <i class="fas fa-check-circle text-danger fs-4"></i>
+                        </div>
+                        <div>
+                            <h4 class="mb-0 fw-bold closed-tickets">0</h4>
+                            <p class="mb-0 text-muted fs-14">Closed</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         {{-- ── Ticket list card ─────────────────────────────────────── --}}
         <div class="card">
-            <div class="card-header bg-white d-flex justify-content-between align-items-center">
+            <div class="card-header bg-white d-flex justify-content-between align-items-center flex-wrap gap-2">
                 <h5 class="card-title mb-0">
                     <i class="fas fa-ticket-alt me-2"></i>Ticket List
                 </h5>
+                <div class="d-flex gap-2 flex-wrap">
+                    <select id="filterStatus" class="form-select form-select-sm" style="width:auto;">
+                        <option value="">All Status</option>
+                        <option value="open">Open</option>
+                        <option value="in_progress">In Progress</option>
+                        <option value="closed">Closed</option>
+                    </select>
+                    <select id="filterCategory" class="form-select form-select-sm" style="width:auto;">
+                        <option value="">All Categories</option>
+                        <option value="dispatch">Dispatch</option>
+                        <option value="e-wallet">E-Wallet</option>
+                        <option value="software-issue">Software Issue</option>
+                        <option value="kyc">KYC</option>
+                        <option value="TDS-and-gst">TDS & GST</option>
+                        <option value="direct-seller">Direct Seller</option>
+                        <option value="product-and-quality">Product & Quality</option>
+                        <option value="other">Other</option>
+                    </select>
+                </div>
             </div>
             <div class="card-body ">
                 <div class="table-responsive">
-                    <table class="table table-hover w-100" id="kycTable">
+                    <table class="table table-hover w-100" id="grievanceTable">
                         <thead class="bg-light">
                             <tr>
                                 <th>#</th>
@@ -33,6 +108,7 @@
                                 <th>Ticket No</th>
                                 <th>Subject</th>
                                 <th>Category</th>
+                                <th>Priority</th>
                                 <th>Status</th>
                                 <th>Date</th>
                                 <th>Action</th>
@@ -98,9 +174,17 @@ function showBodyLoader() {
 }
 
 function scrollChatToBottom() {
-    // Scroll the canvas-scroll container (not chatThread) to bottom
     const scroller = document.querySelector('#offcanvasBody .canvas-scroll');
     if (scroller) scroller.scrollTop = scroller.scrollHeight;
+}
+
+function updateStats() {
+    $.get(window.routes.grievanceIndex, { stats: 1 }, function (r) {
+        document.querySelector('.total-tickets').textContent = r.total;
+        document.querySelector('.open-tickets').textContent = r.open;
+        document.querySelector('.inprogress-tickets').textContent = r.in_progress;
+        document.querySelector('.closed-tickets').textContent = r.closed;
+    });
 }
 
 // ── Open ticket offcanvas ────────────────────────────────────
@@ -142,7 +226,6 @@ function bindReplyForm() {
     const form = document.getElementById('adminReplyForm');
     if (!form) return;
 
-    // Show selected filename
     const fileInput = form.querySelector('input[type="file"]');
     if (fileInput) {
         fileInput.addEventListener('change', function () {
@@ -173,7 +256,6 @@ function bindReplyForm() {
             processData: false,
             contentType: false,
             success: function () {
-                // Reload the messages pane
                 loadMessages(ticketId);
             },
             error: function (xhr) {
@@ -193,29 +275,47 @@ function bindStatusButtons() {
             e.preventDefault();
             const ticketId = this.dataset.ticket;
             const newStatus = this.dataset.status;
+            const statusLabel = this.textContent.trim();
 
-            $.ajax({
-                url: window.routes.changeStatus.replace(':id', ticketId),
-                method: 'POST',
-                data: {
-                    _token: window.csrfToken,
-                    _method: 'POST',
-                    status: newStatus,
-                },
-                success: function (response) {
-                    if (response.success) {
-                        // Reload messages pane to reflect new status
-                        loadMessages(ticketId);
-                        // Refresh the DataTable row
-                        $('#kycTable').DataTable().ajax.reload(null, false);
-                    }
-                },
-                error: function (xhr) {
-                    Swal.fire({
-                        icon: 'error',
-                        title: 'Error',
-                        text: xhr.responseJSON?.message ?? 'Failed to update status.',
-                        timer: 3000
+            Swal.fire({
+                title: 'Change Status?',
+                text: 'Set this ticket to "' + statusLabel + '"?',
+                icon: 'question',
+                showCancelButton: true,
+                confirmButtonColor: '#3085d6',
+                cancelButtonColor: '#d33',
+                confirmButtonText: 'Yes, update it!'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    $.ajax({
+                        url: window.routes.changeStatus.replace(':id', ticketId),
+                        method: 'POST',
+                        data: {
+                            _token: window.csrfToken,
+                            _method: 'POST',
+                            status: newStatus,
+                        },
+                        success: function (response) {
+                            if (response.success) {
+                                loadMessages(ticketId);
+                                $('#grievanceTable').DataTable().ajax.reload(null, false);
+                                updateStats();
+                                Swal.fire({
+                                    icon: 'success',
+                                    title: 'Updated!',
+                                    text: response.message,
+                                    timer: 2000
+                                });
+                            }
+                        },
+                        error: function (xhr) {
+                            Swal.fire({
+                                icon: 'error',
+                                title: 'Error',
+                                text: xhr.responseJSON?.message ?? 'Failed to update status.',
+                                timer: 3000
+                            });
+                        }
                     });
                 }
             });
@@ -226,11 +326,17 @@ function bindStatusButtons() {
 // ── DataTable ────────────────────────────────────────────────
 $(document).ready(function () {
 
-    $('#kycTable').DataTable({
+    const table = $('#grievanceTable').DataTable({
         processing: true,
         serverSide: true,
         scrollX: true,
-        ajax: window.routes.grievanceIndex,
+        ajax: {
+            url: window.routes.grievanceIndex,
+            data: function (d) {
+                d.filter_status = $('#filterStatus').val();
+                d.filter_category = $('#filterCategory').val();
+            }
+        },
         columns: [
             { data: 'DT_RowIndex',  name: 'DT_RowIndex', searchable: false, orderable: false },
             { data: 'name',         name: 'mlm_users.first_name' },
@@ -238,14 +344,21 @@ $(document).ready(function () {
             { data: 'ticket_no',    name: 'ticket_no' },
             { data: 'subject',      name: 'subject' },
             { data: 'category',     name: 'category' },
+            { data: 'priority',     name: 'priority' },
             { data: 'status',       name: 'status' },
             { data: 'created_at',   name: 'created_at' },
             { data: 'actions',      name: 'actions', orderable: false, searchable: false },
-        ]
+        ],
+        drawCallback: function () {
+            updateStats();
+        }
     });
 
-    // View ticket button
-    $('#kycTable').on('click', '.view-ticket-button', function () {
+    $('#filterStatus, #filterCategory').on('change', function () {
+        table.ajax.reload();
+    });
+
+    $('#grievanceTable').on('click', '.view-ticket-button', function () {
         openMessage($(this).data('id'), $(this).data('ticket'));
     });
 });

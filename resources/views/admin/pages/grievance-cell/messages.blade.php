@@ -15,8 +15,7 @@
             </p>
             <p class="mb-0 small text-muted">
                 <strong>Category:</strong> {{ ucfirst($ticket->category) }}
-                &nbsp;
-               {{--  |&nbsp;
+                &nbsp;|&nbsp;
                 <strong>Priority:</strong>
                 <span class="badge
                     @if($ticket->priority === 'high') bg-danger
@@ -24,7 +23,7 @@
                     @else bg-secondary
                     @endif">
                     {{ ucfirst($ticket->priority) }}
-                </span> --}}
+                </span>
             </p>
         </div>
 

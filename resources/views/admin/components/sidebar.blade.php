@@ -289,6 +289,12 @@
                         @can('manage-website-settings')
                             <li><a href="{{ route('bank-account-settings.index') }}">Bank Account Settings</a></li>
                         @endcan
+                        @can('manage-privacy-policy')
+                            <li><a href="{{ route('admin-privacy-policy.index') }}">Privacy Policy</a></li>
+                        @endcan
+                        @can('manage-terms-conditions')
+                            <li><a href="{{ route('admin-terms-condition.index') }}">Terms & Conditions</a></li>
+                        @endcan
                     </ul>
                 </li>
             @endcanany
@@ -329,7 +335,7 @@
             <li>
                 <a href="{{ route('grievance.index') }}" class="ai-icon" aria-expanded="false">
                     <i class="fa fa-user-circle"></i>
-                    <span class="nav-text">Grivance Cell</span>
+                    <span class="nav-text">Grievance Cell</span>
                 </a>
             </li>
 
@@ -349,6 +355,7 @@
                     <li><a href="{{ route('rewards.index') }}">Rewards</a></li>
                     <li><a href="{{ route('user-ranks.index') }}">User Ranks</a></li>
                     <li><a href="{{ route('user-rewards.index') }}">User Rewards</a></li>
+                    <li><a href="{{ route('pending-orders.index') }}">Pending Orders</a></li>
                     <li><a href="{{ route('purchase-history.index') }}">Purchase History</a></li>
                     <li><a href="{{ route('referral-income-logs.index') }}">Referral Income Logs</a></li>
                     <li><a href="{{ route('notification-logs.index') }}">Notifications</a></li>

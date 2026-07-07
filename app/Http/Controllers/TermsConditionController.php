@@ -4,46 +4,89 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Models\TermsCondition;
+use Illuminate\Support\Str;
+use Yajra\DataTables\Facades\DataTables;
+
 class TermsConditionController extends Controller
 {
-    //
-    public function index()
+    public function index(Request $request)
     {
-        $TermsCondition = TermsCondition::firstOrCreate(
-            [],
-            [
-                'sub_title' => 'Corporate Wellness',
-                'main_title' => 'Precision. Care. Confidence — The Edge in Diagnostics.',
-                'description' => 'At Continuity Care, we are committed to delivering accurate, reliable, and timely diagnostic results to help doctors and patients make informed health decisions.',
-                'is_active' => true
-            ]
-        );
+        if ($request->ajax()) {
+            $terms = TermsCondition::select('*');
 
+            return DataTables::of($terms)
+                ->addIndexColumn()
+                ->addColumn('is_active', function ($row) {
+                    return $row->is_active
+                        ? '<span class="badge bg-success">Active</span>'
+                        : '<span class="badge bg-danger">Inactive</span>';
+                })
+                ->addColumn('description', function ($row) {
+                    return Str::limit(strip_tags($row->description), 80);
+                })
+                ->addColumn('actions', function ($row) {
+                    $btn = '<button class="btn btn-sm btn-primary edit-btn me-1"
+                                data-id="' . $row->id . '"
+                                data-sub_title="' . e($row->sub_title) . '"
+                                data-main_title="' . e($row->main_title) . '"
+                                data-description="' . e($row->description) . '"
+                                data-is_active="' . $row->is_active . '">
+                                <i class="fas fa-edit"></i>
+                            </button>';
+                    $btn .= '<button class="btn btn-sm btn-danger delete-btn"
+                                data-id="' . $row->id . '">
+                                <i class="fas fa-trash"></i>
+                            </button>';
+                    return $btn;
+                })
+                ->rawColumns(['is_active', 'actions'])
+                ->make(true);
+        }
 
-        return view('admin.pages.admin-terms-conditions', compact('TermsCondition'));
+        return view('admin.pages.admin-terms-conditions');
     }
+
+    public function store(Request $request)
+    {
+        $request->validate([
+            'sub_title'   => 'required|string|max:100',
+            'main_title'  => 'required|string|max:200',
+            'description' => 'required|string',
+        ]);
+
+        TermsCondition::create([
+            'sub_title'   => $request->sub_title,
+            'main_title'  => $request->main_title,
+            'description' => $request->description,
+            'is_active'   => $request->boolean('is_active'),
+        ]);
+
+        return response()->json(['success' => true, 'message' => 'Terms & Conditions created successfully.']);
+    }
+
     public function update(Request $request)
     {
-        $TermsCondition = TermsCondition::firstOrFail();
-
         $request->validate([
-            'sub_title' => 'required|string|max:100',
-            'main_title' => 'required|string|max:200',
+            'id'          => 'required|exists:terms_conditions,id',
+            'sub_title'   => 'required|string|max:100',
+            'main_title'  => 'required|string|max:200',
             'description' => 'required|string',
-            'is_active' => 'boolean'
         ]);
 
-        $data = $request->only([
-            'sub_title',
-            'main_title',
-            'description',
-            'is_active'
+        $term = TermsCondition::findOrFail($request->id);
+        $term->update([
+            'sub_title'   => $request->sub_title,
+            'main_title'  => $request->main_title,
+            'description' => $request->description,
+            'is_active'   => $request->boolean('is_active'),
         ]);
 
+        return response()->json(['success' => true, 'message' => 'Terms & Conditions updated successfully.']);
+    }
 
-
-        $TermsCondition->update($data);
-
-        return back()->with('success', 'Terms And Conditions Content updated successfully!');
+    public function destroy($id)
+    {
+        TermsCondition::findOrFail($id)->delete();
+        return response()->json(['success' => true, 'message' => 'Terms & Conditions deleted successfully.']);
     }
 }

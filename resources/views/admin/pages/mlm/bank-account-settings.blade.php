@@ -1,5 +1,5 @@
 @extends("admin.layout.admin-master")
-@section("title", "Bank Account Settings | Continuity Care")
+@section("title", "Bank Account Settings | VSR")
 
 @section("content")
     <div class="content-body">
@@ -100,10 +100,26 @@
                                             <span class="invalid-feedback d-block">{{ $message }}</span>
                                         @enderror
                                     </div>
-                                </div> 
+
+                                    <div class="col-lg-12 mb-4">
+                                        <label class="form-label fw-bold">QR Code Image</label>
+                                        @if($bankDetails?->image)
+                                            <div class="mb-2">
+                                                <img src="{{ asset('storage/' . $bankDetails->image) }}"
+                                                     alt="QR Code" width="150" height="150"
+                                                     style="object-fit: contain; border: 1px solid #ddd; border-radius: 8px; padding: 4px;">
+                                            </div>
+                                        @endif
+                                        <input type="file" class="form-control @error('image') is-invalid @enderror"
+                                               name="image" accept="image/jpeg,image/png,image/jpg,image/gif">
+                                        <small class="text-muted">Allowed: JPG, PNG, JPEG, GIF (Max: 2MB). Leave empty to keep current image.</small>
+                                        @error('image')
+                                            <span class="invalid-feedback d-block">{{ $message }}</span>
+                                        @enderror
+                                    </div>
+                                </div>
 
                                 <div class="d-flex justify-content-between align-items-center">
-                                  
                                     <button type="submit" class="btn btn-primary btn-lg px-5">
                                         <i class="fa fa-save me-1"></i> Save Changes
                                     </button>

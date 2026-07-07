@@ -8,11 +8,22 @@ use App\Models\OrderItem;
 
 class RankService
 {
+    public function __construct(
+        private readonly SelfCCService $selfCCService,
+    ) {}
+
+    /**
+     * Get total CC for a user including CC from orders where
+     * this user is the sponsor of the purchased_for_user.
+     */
+    private function getTotalCc(int $userId): float
+    {
+        return $this->selfCCService->getTotalCcAsSponsor($userId);
+    }
+
     public function checkAndUpgradeRank(int $userId): ?UserRank
     {
-        $selfCC = OrderItem::whereHas('order', function ($q) use ($userId) {
-            $q->where('user_id', $userId)->where('status', 'COMPLETED');
-        })->sum('cc_points');
+        $totalCC = $this->getTotalCc($userId);
 
         $currentRank = UserRank::where('mlm_user_id', $userId)
             ->where('is_current', true)
@@ -23,7 +34,7 @@ class RankService
 
         $nextRank = Rank::where('is_active', true)
             ->where('sort_order', '>', $currentSortOrder)
-            ->where('required_self_cc', '<=', $selfCC)
+            ->where('required_self_cc', '<=', $totalCC)
             ->orderBy('sort_order', 'desc')
             ->first();
 
@@ -42,12 +53,11 @@ class RankService
         $userRank = UserRank::create([
             'mlm_user_id' => $userId,
             'rank_id' => $nextRank->id,
-            'current_cc_at_time' => $selfCC,
+            'current_cc_at_time' => $totalCC,
             'is_current' => true,
             'achieved_at' => now(),
         ]);
 
-        // Set the user's rank on MLMTree if applicable
         $tree = \App\Models\MLMTree::where('mlm_user_id', $userId)->first();
         if ($tree) {
             $tree->update(['rank' => $nextRank->slug]);
@@ -68,9 +78,7 @@ class RankService
 
     public function getRankProgress(int $userId): array
     {
-        $selfCC = OrderItem::whereHas('order', function ($q) use ($userId) {
-            $q->where('user_id', $userId)->where('status', 'COMPLETED');
-        })->sum('cc_points');
+        $totalCC = $this->getTotalCc($userId);
 
         $currentRank = UserRank::where('mlm_user_id', $userId)
             ->where('is_current', true)
@@ -83,15 +91,15 @@ class RankService
 
         $progress = [];
         foreach ($allRanks as $rank) {
-            $achieved = $selfCC >= $rank->required_self_cc;
+            $achieved = $totalCC >= $rank->required_self_cc;
             $progress[] = [
                 'rank' => $rank,
                 'required_cc' => $rank->required_self_cc,
-                'current_cc' => $selfCC,
+                'current_cc' => $totalCC,
                 'achieved' => $achieved,
                 'is_current' => $currentRank && $currentRank->rank_id === $rank->id,
                 'progress_percent' => $rank->required_self_cc > 0
-                    ? min(100, ($selfCC / $rank->required_self_cc) * 100)
+                    ? min(100, ($totalCC / $rank->required_self_cc) * 100)
                     : 0,
             ];
         }

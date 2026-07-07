@@ -1,5 +1,5 @@
 @extends('admin.layout.admin-master')
-@section('title', 'Purchase History')
+@section('title', 'Pending Orders')
 
 @section('content')
 <div class="content-body">
@@ -10,19 +10,20 @@
                 <li class="breadcrumb-item">
                     <a href="{{ route('dashboard') }}">Dashboard</a>
                 </li>
-                <li class="breadcrumb-item active">Purchase History</li>
+                <li class="breadcrumb-item active">Pending Orders</li>
             </ol>
         </div>
 
         <div class="card">
             <div class="card-header bg-white d-flex justify-content-between align-items-center">
                 <h5 class="card-title mb-0">
-                    <i class="fas fa-shopping-cart me-2"></i>Purchase History
+                    <i class="fas fa-clock me-2"></i>Pending Orders
                 </h5>
+                <span class="badge bg-warning text-dark fs-6" id="pendingCount">0</span>
             </div>
             <div class="card-body">
                 <div class="table-responsive">
-                    <table class="table table-hover w-100" id="purchaseTable">
+                    <table class="table table-hover w-100" id="pendingTable">
                         <thead class="bg-light">
                             <tr>
                                 <th>#</th>
@@ -70,15 +71,17 @@
 @push('scripts')
 <script>
 window.csrfToken = '{{ csrf_token() }}';
-window.purchaseIndexRoute = '{{ route("purchase-history.index") }}';
+window.pendingRoute = '{{ route("pending-orders.index") }}';
+window.purchaseShowRoute = '{{ url("purchase-history") }}';
+window.confirmRoute = '{{ url("purchase-history") }}';
 
 $(document).ready(function () {
 
-    const table = $('#purchaseTable').DataTable({
+    const table = $('#pendingTable').DataTable({
         processing: true,
         serverSide: true,
         scrollX: true,
-        ajax: window.purchaseIndexRoute,
+        ajax: window.pendingRoute,
         columns: [
             { data: 'DT_RowIndex', name: 'DT_RowIndex', searchable: false, orderable: false },
             { data: 'order_no', name: 'orders.id' },
@@ -90,12 +93,16 @@ $(document).ready(function () {
             { data: 'status', name: 'status' },
             { data: 'date', name: 'order_date' },
             { data: 'actions', name: 'actions', orderable: false, searchable: false },
-        ]
+        ],
+        drawCallback: function (settings) {
+            const info = this.api().page.info();
+            $('#pendingCount').text(info.recordsTotal);
+        }
     });
 
     let currentOrderId = null;
 
-    $('#purchaseTable').on('click', '.view-order-button', function () {
+    $('#pendingTable').on('click', '.view-order-button', function () {
         const id = $(this).data('id');
         currentOrderId = id;
         const body = $('#orderDetailBody');
@@ -110,7 +117,7 @@ $(document).ready(function () {
         $('#orderDetailModal').modal('show');
 
         $.ajax({
-            url: window.purchaseIndexRoute + '/' + id,
+            url: window.purchaseShowRoute + '/' + id,
             method: 'GET',
             success: function (response) {
                 if (response.success) {
@@ -168,16 +175,12 @@ $(document).ready(function () {
                         ${itemsHtml}
                     `);
 
-                    if (order.status === 'PENDING' && order.payment_mode === 'MANUAL') {
-                        footer.html(`
-                            <button type="button" class="btn btn-success" onclick="confirmOrder(${order.id})">
-                                <i class="fas fa-check me-1"></i> Confirm Order
-                            </button>
-                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                        `);
-                    } else {
-                        footer.html(`<button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>`);
-                    }
+                    footer.html(`
+                        <button type="button" class="btn btn-success" onclick="confirmOrder(${order.id})">
+                            <i class="fas fa-check me-1"></i> Confirm Order
+                        </button>
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    `);
                 }
             },
             error: function () {
@@ -199,14 +202,14 @@ function confirmOrder(id) {
     }).then(function (result) {
         if (result.isConfirmed) {
             $.ajax({
-                url: window.purchaseIndexRoute + '/' + id + '/confirm',
+                url: window.confirmRoute + '/' + id + '/confirm',
                 method: 'POST',
                 data: { _token: window.csrfToken },
                 success: function (response) {
                     if (response.success) {
                         Swal.fire('Confirmed!', response.message, 'success');
                         $('#orderDetailModal').modal('hide');
-                        $('#purchaseTable').DataTable().ajax.reload();
+                        $('#pendingTable').DataTable().ajax.reload();
                     } else {
                         Swal.fire('Error', response.message, 'error');
                     }

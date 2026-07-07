@@ -7,12 +7,14 @@ use App\Mail\BinaryPositionEmail;
 use App\Mail\InvoiceEmail;
 use App\Mail\RankAchievedEmail;
 use App\Mail\RewardAchievedEmail;
+use App\Mail\SponsorCccEmail;
 use App\Mail\SponsorNotificationEmail;
 use App\Mail\TicketUpdateEmail;
 use App\Mail\WelcomeEmail;
 use App\Mail\WithdrawalApprovedEmail;
 use App\Models\Invoice;
 use App\Models\MlmUser;
+use App\Models\Order;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 
@@ -61,5 +63,17 @@ class MailNotificationService
     public function sendTicketUpdate(MlmUser $user, string $ticketNo, string $update): void
     {
         Mail::to($user->email)->queue(new TicketUpdateEmail($user, $ticketNo, $update));
+    }
+
+    public function sendSponsorCc(MlmUser $sponsor, MlmUser $recipient, Order $order, float $ccPoints): void
+    {
+        Mail::to($sponsor->email)->queue(new SponsorCccEmail($sponsor, $recipient, $order, $ccPoints));
+    }
+
+    public function sendInvoiceToUser(MlmUser $user, Invoice $invoice): void
+    {
+        if ($user->email) {
+            Mail::to($user->email)->queue(new InvoiceEmail($user, $invoice));
+        }
     }
 }

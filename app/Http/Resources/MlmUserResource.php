@@ -29,7 +29,7 @@ class MlmUserResource extends JsonResource
             $data['detail'] = $this->detail;
         }
 
-        if ($this->relationLoaded('sponsor')) {
+        if ($this->relationLoaded('sponsor') && $this->sponsor) {
             $data['sponsor'] = [
                 'id' => $this->sponsor->id,
                 'user_name' => $this->sponsor->user_name,

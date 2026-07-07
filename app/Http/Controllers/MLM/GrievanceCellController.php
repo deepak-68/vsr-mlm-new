@@ -16,6 +16,16 @@ class GrievanceCellController extends Controller
     public function index(Request $request)
     {
         if ($request->ajax()) {
+
+            if ($request->has('stats')) {
+                return response()->json([
+                    'total'       => Grivance::count(),
+                    'open'        => Grivance::where('status', 'open')->count(),
+                    'in_progress' => Grivance::where('status', 'in_progress')->count(),
+                    'closed'      => Grivance::where('status', 'closed')->count(),
+                ]);
+            }
+
             $grievance = Grivance::select(
                 'grivances.*',
                 'mlm_users.first_name',
@@ -23,6 +33,14 @@ class GrievanceCellController extends Controller
                 'mlm_users.user_name'
             )
             ->leftJoin('mlm_users', 'grivances.user_id', '=', 'mlm_users.id');
+
+            if ($request->filled('filter_status')) {
+                $grievance->where('grivances.status', $request->filter_status);
+            }
+
+            if ($request->filled('filter_category')) {
+                $grievance->where('grivances.category', $request->filter_category);
+            }
 
             return DataTables::of($grievance)
                 ->addIndexColumn()
@@ -32,6 +50,16 @@ class GrievanceCellController extends Controller
                 ->addColumn('username', fn($row) => $row->user_name)
                 ->addColumn('subject', function ($row) {
                     return Str::limit($row->subject, 50);
+                })
+
+                ->addColumn('priority', function ($row) {
+                    $map = [
+                        'high'   => ['label' => 'High',   'class' => 'bg-danger'],
+                        'medium' => ['label' => 'Medium', 'class' => 'bg-warning text-dark'],
+                        'low'    => ['label' => 'Low',    'class' => 'bg-secondary'],
+                    ];
+                    $item = $map[$row->priority] ?? ['label' => ucfirst($row->priority), 'class' => 'bg-secondary'];
+                    return '<span class="badge ' . $item['class'] . '">' . $item['label'] . '</span>';
                 })
 
                 ->addColumn('status', function ($row) {
@@ -44,10 +72,6 @@ class GrievanceCellController extends Controller
                     return '<span class="badge ' . $item['class'] . '">' . $item['label'] . '</span>';
                 })
 
-                ->filterColumn('status', fn($query, $keyword) =>
-                    $query->where('status', 'like', "%{$keyword}%")
-                )
-
                 ->addColumn('created_at', fn($row) => $row->created_at->format('d-m-Y'))
 
                 ->addColumn('actions', fn($row) =>
@@ -58,7 +82,7 @@ class GrievanceCellController extends Controller
                     </button>'
                 )
 
-                ->rawColumns(['status', 'actions'])
+                ->rawColumns(['priority', 'status', 'actions'])
                 ->make(true);
         }
 

@@ -21,7 +21,10 @@ class PurchaseService
         int $userId,
         int $productId,
         int $quantity,
-        ?int $targetUserId = null
+        ?int $targetUserId = null,
+        ?string $paymentMode = null,
+        ?string $transactionNumber = null,
+        ?string $paymentProofPath = null
     ): Order {
         $actualUserId = $targetUserId ?? $userId;
 
@@ -40,29 +43,38 @@ class PurchaseService
             $product,
             $quantity,
             $userId,
-            $targetUserId
+            $targetUserId,
+            $paymentMode,
+            $transactionNumber,
+            $paymentProofPath
         ) {
-            $totalAmount = $product->price * $quantity;
+            $unitPrice = $product->discount_price ?? $product->price;
+            $totalAmount = $unitPrice * $quantity;
             $ccPoints = ($product->cc_points ?? 0) * $quantity;
+
+            $isManual = $paymentMode === Order::PAYMENT_MANUAL;
 
             $order = Order::create([
                 'user_id' => $actualUserId,
+                'purchased_for_user_id' => $userId,
                 'package_id' => null,
                 'order_date' => now(),
                 'total_amount' => $totalAmount,
                 'total_cc_points' => $ccPoints,
-                'status' => Order::STATUS_COMPLETED,
+                'status' => $isManual ? Order::STATUS_PENDING : Order::STATUS_COMPLETED,
                 'order_type' => $targetUserId ? Order::TYPE_ADMIN : Order::TYPE_SELF,
-                'payment_mode' => Order::PAYMENT_WALLET,
+                'payment_mode' => $paymentMode ?? Order::PAYMENT_WALLET,
                 'note' => "Purchased {$quantity}x {$product->name}",
+                'transaction_number' => $transactionNumber,
+                'payment_proof' => $paymentProofPath,
             ]);
 
             $order->items()->create([
                 'product_id' => $product->id,
                 'quantity' => $quantity,
-                'price' => $product->price,
+                'price' => $unitPrice,
                 'cc_points' => $ccPoints,
-                'status' => 'COMPLETED',
+                'status' => $isManual ? 'PENDING' : 'COMPLETED',
             ]);
 
             $product->decrement('stock', $quantity);
@@ -73,30 +85,35 @@ class PurchaseService
                     'earned_amount' => DB::raw("earned_amount + {$totalAmount}")
                 ]);
 
-            // Check activation (min 2 products purchased)
-            $this->checkAndActivateUser($actualUserId);
+            if (!$isManual) {
+                // Check activation (min 2 products purchased)
+                $this->checkAndActivateUser($actualUserId);
 
-            // Cumulative commission calculation
-            $commission = $this->updateCommissionLevel($actualUserId);
+                // Cumulative commission calculation
+                $commission = $this->updateCommissionLevel($actualUserId);
 
-            $this->generateDirectIncome(
-                $actualUserId,
-                $commission,
-                $order,
-                $quantity,
-            );
+                $this->generateDirectIncome(
+                    $actualUserId,
+                    $commission,
+                    $order,
+                    $quantity,
+                );
 
-            // Auto-generate invoice
-            $this->generateInvoice($order, $actualUserId, $ccPoints);
+                // Auto-generate invoice
+                $this->generateInvoice($order, $userId, $ccPoints);
 
-            // Create in-app notification
-            $this->createPurchaseNotification($actualUserId, $order, $ccPoints);
+                // Create in-app notification for both payer and recipient
+                $this->createPurchaseNotification($actualUserId, $order, $ccPoints);
+                if ($userId !== $actualUserId) {
+                    $this->createPurchaseNotification($userId, $order, $ccPoints);
+                }
+            }
 
             return $order->load('items');
         });
     }
 
-    private function checkAndActivateUser(int $userId): void
+    public function checkAndActivateUser(int $userId): void
     {
         $user = MlmUser::find($userId);
         if (!$user || $user->is_active) return;
@@ -196,7 +213,7 @@ class PurchaseService
         }
     }
 
-    private function generateInvoice(Order $order, int $userId, float $totalCc): void
+    public function generateInvoice(Order $order, int $userId, float $totalCc): void
     {
         $invoice = Invoice::create([
             'order_id' => $order->id,
@@ -216,7 +233,7 @@ class PurchaseService
         }
     }
 
-    private function createPurchaseNotification(int $userId, Order $order, float $ccPoints): void
+    public function createPurchaseNotification(int $userId, Order $order, float $ccPoints): void
     {
         Notification::create([
             'mlm_user_id' => $userId,

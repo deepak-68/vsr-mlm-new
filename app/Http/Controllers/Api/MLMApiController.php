@@ -32,7 +32,7 @@ class MLMApiController extends Controller
             ->where('is_deleted', false);
 
         $referrals = (clone $baseQuery)
-            ->with('payoutBalance')
+            ->with(['payoutBalance', 'currentRank.rank'])
             ->latest()
             ->paginate($request->input('per_page', 12));
 
@@ -59,6 +59,24 @@ class MLMApiController extends Controller
 
     /**
      * ✅ 2. Referral Profile (Modal Data)
+     */
+    public function getReferralProfile($userId)
+    {
+        try {
+            $user = MlmUser::with(['sponsor:id,user_name,first_name,last_name', 'detail', 'payoutBalance'])
+                ->findOrFail($userId);
+
+            return response()->json([
+                'success' => true,
+                'user' => new MlmUserResource($user),
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['success' => false, 'message' => 'User not found'], 404);
+        }
+    }
+
+    /**
+     * ✅ 3. Referral Downline
      */
       public function getReferralDownline(Request $request)
     {
@@ -108,16 +126,40 @@ class MLMApiController extends Controller
      */
     public function getHoldingTank(Request $request)
     {
-        $holdingUsers = MLMTree::with(['mlmUser.sponsor'])
+        $query = MLMTree::with(['mlmUser.sponsor'])
             ->whereHas('mlmUser', fn($q) => $q->where('is_verified', true)->where('is_active', true))
             ->whereNull('parent_id')->where('position', 'none')
-            ->whereHas('mlmUser', fn($q) => $q->where('user_name', '!=', 'Founder01'))
-            ->latest()->paginate($request->get('per_page', 15))
-            ->through(function ($tree) {
-                return $tree;
-            });
+            ->whereHas('mlmUser', fn($q) => $q->where('user_name', '!=', 'Founder01'));
 
+        // If sponsor_id is provided, filter to only show pending users under that sponsor
+        // Accept comma-separated IDs or an array to support multiple sponsors
+        if ($request->filled('sponsor_id')) {
+            $sponsorIds = $request->sponsor_id;
+            if (is_string($sponsorIds)) {
+                $sponsorIds = explode(',', $sponsorIds);
+            }
+            $sponsorIds = array_map('trim', (array) $sponsorIds);
+            $sponsorIds = array_filter($sponsorIds, fn($id) => is_numeric($id));
+            if (!empty($sponsorIds)) {
+                $query->whereHas('mlmUser', fn($q) => $q->whereIn('sponsor_id', $sponsorIds));
+            }
+        }
+
+        $holdingUsers = $query->latest()->paginate($request->get('per_page', 15));
+
+        // Only show parents with at least one free position (left or right vacant)
         $parents = MlmUser::where('is_active', true)->where('is_deleted', false)
+            ->whereHas('tree', function ($q) {
+                $q->where(function ($placed) {
+                    // Must be placed in tree (has parent_id) OR be the root user
+                    $placed->whereNotNull('parent_id')->orWhere('mlm_user_id', 1);
+                })
+                ->where(function ($free) {
+                    // At least one position must be vacant
+                    $free->whereDoesntHave('children', fn($c) => $c->where('position', 'left'))
+                         ->orWhereDoesntHave('children', fn($c) => $c->where('position', 'right'));
+                });
+            })
             ->orderBy('user_name')->get(['id', 'user_name', 'first_name', 'last_name'])
             ->map(fn($p) => ['id' => $p->id, 'user_name' => $p->user_name, 'first_name' => $p->first_name, 'last_name' => $p->last_name]);
 
@@ -133,6 +175,7 @@ class MLMApiController extends Controller
             'user_id' => 'required',
             'parent_id' => 'required',
             'position' => 'required|in:left,right',
+            'sponsor_id' => 'nullable',
         ]);
 
         $validated['user_id'] = MlmUser::where('id', $validated['user_id'])->value('id');
@@ -140,6 +183,32 @@ class MLMApiController extends Controller
 
         if ($validated['user_id'] == $validated['parent_id']) {
             return response()->json(['success' => false, 'message' => 'Cannot place user under themselves.'], 422);
+        }
+
+        // If sponsor_id is provided, verify the user being placed belongs to that sponsor
+        // Also allow if the authenticated user is a member of that sponsor's team
+        if (!empty($validated['sponsor_id'])) {
+            $sponsorId = $validated['sponsor_id'];
+            $userToPlace = MlmUser::find($validated['user_id']);
+            if (!$userToPlace || $userToPlace->sponsor_id != $sponsorId) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'You can only place users who are under your sponsorship.'
+                ], 403);
+            }
+            // Allow if the requester is the sponsor OR a member of the sponsor's team
+            $requester = auth()->user();
+            if ($requester && $requester->id != $sponsorId) {
+                $isTeamMember = MlmUser::where('id', $requester->id)
+                    ->where('sponsor_id', $sponsorId)
+                    ->exists();
+                if (!$isTeamMember) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'You are not authorized to place users under this sponsor.'
+                    ], 403);
+                }
+            }
         }
 
         DB::beginTransaction();

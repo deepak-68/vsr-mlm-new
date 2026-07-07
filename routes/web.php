@@ -70,26 +70,27 @@ use App\Http\Controllers\IndependentAboutController;
 use App\Http\Controllers\IndependentAccommodationController;
 use App\Http\Controllers\JobCareerApplicationController;
 use App\Http\Controllers\JobCareerController;
+use App\Http\Controllers\MLM\CallbackRequestController;
 use App\Http\Controllers\MLM\CCSettingController;
 use App\Http\Controllers\MLM\GrievanceCellController;
 use App\Http\Controllers\MLM\KycDocumentController;
+use App\Http\Controllers\MLM\MLMActivationController;
 use App\Http\Controllers\MLM\MLMOrderController;
 use App\Http\Controllers\MLM\MLMPayoutController;
 use App\Http\Controllers\MLM\MLMTreeController;
 use App\Http\Controllers\MLM\MLMUserController;
-use App\Http\Controllers\MLM\ReferralDownlineController;
-use App\Http\Controllers\MLM\RegistrationController;
-use App\Http\Controllers\MLM\TeamGenealogyController;
-use App\Http\Controllers\MLM\WalletController;
-use App\Http\Controllers\MLM\CallbackRequestController;
-use App\Http\Controllers\MLM\RankController;
-use App\Http\Controllers\MLM\UserRankController;
-use App\Http\Controllers\MLM\RewardController;
-use App\Http\Controllers\MLM\UserRewardController;
-use App\Http\Controllers\MLM\PurchaseHistoryController;
-use App\Http\Controllers\MLM\ReferralIncomeLogController;
 use App\Http\Controllers\MLM\NotificationLogController;
+use App\Http\Controllers\MLM\PurchaseHistoryController;
+use App\Http\Controllers\MLM\RankController;
+use App\Http\Controllers\MLM\ReferralDownlineController;
+use App\Http\Controllers\MLM\ReferralIncomeLogController;
+use App\Http\Controllers\MLM\RegistrationController;
 use App\Http\Controllers\MLM\ReportController;
+use App\Http\Controllers\MLM\RewardController;
+use App\Http\Controllers\MLM\TeamGenealogyController;
+use App\Http\Controllers\MLM\UserRankController;
+use App\Http\Controllers\MLM\UserRewardController;
+use App\Http\Controllers\MLM\WalletController;
 use App\Http\Controllers\NdisAboutController;
 use App\Http\Controllers\NdisServiceController;
 use App\Http\Controllers\NdisSupportController;
@@ -122,12 +123,12 @@ use App\Http\Controllers\SupportCoordinationAboutController;
 use App\Http\Controllers\SupportCoordinationBenefitController;
 use App\Http\Controllers\SupportCoordinationFaqController;
 use App\Http\Controllers\SupportCoordinationPlanController;
-use App\Http\Controllers\SupportCoordinationServiceController;
 
+use App\Http\Controllers\SupportCoordinationServiceController;
 use App\Http\Controllers\SystemSetting;
 use App\Http\Controllers\TermsConditionController;
-use App\Http\Controllers\TestController;
 
+use App\Http\Controllers\TestController;
 use App\Http\Controllers\TestimonialController;
 use App\Http\Controllers\UserRegisterController;
 use App\Http\Controllers\ValueController;
@@ -137,6 +138,7 @@ use App\Http\Controllers\WhyPartnerController;
 use App\Models\MlmUser;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Route;
+
 
 
 
@@ -169,7 +171,7 @@ Route::get('/dashboard', [MLMUserController::class, 'dashboard'])
     ->middleware('auth')
     ->name('dashboard');
 
-Route::get('/activate/{token}', [MLMUserController::class, 'activate'])->name('mlm.activate');
+Route::get('/activate/{token}', [MLMActivationController::class, 'activate'])->name('mlm.activate');
 
 Route::middleware('auth')->group(function () {
 
@@ -538,8 +540,14 @@ Route::middleware('auth')->group(function () {
     Route::get('/privacy-policy-content', [PrivacyPolicyController::class, 'index'])
         ->name('admin-privacy-policy.index');
 
+    Route::post('/privacy-policy/store', [PrivacyPolicyController::class, 'store'])
+        ->name('admin-privacy-policy.store');
+
     Route::put('/privacy-policy/update', [PrivacyPolicyController::class, 'update'])
         ->name('admin-privacy-policy.update');
+
+    Route::delete('/privacy-policy/{id}', [PrivacyPolicyController::class, 'destroy'])
+        ->name('admin-privacy-policy.destroy');
 
     // Accessibility  CONTENT
     Route::get('/admin-accessibility', [AccessibilityController::class, 'index'])
@@ -580,8 +588,14 @@ Route::middleware('auth')->group(function () {
     Route::get('/terms-condition-content', [TermsConditionController::class, 'index'])
         ->name('admin-terms-condition.index');
 
+    Route::post('/terms-condition/store', [TermsConditionController::class, 'store'])
+        ->name('admin-terms-condition.store');
+
     Route::put('/terms-condition/update', [TermsConditionController::class, 'update'])
         ->name('admin-terms-condition.update');
+
+    Route::delete('/terms-condition/{id}', [TermsConditionController::class, 'destroy'])
+        ->name('admin-terms-condition.destroy');
 
     // SEO Pages
     Route::post('/seo-pages/store', [SeoPageController::class, 'store'])->name('seo-pages.store');
@@ -940,8 +954,7 @@ Route::put('/mlm-users/{id}', [MLMUserController::class, 'update'])->name('mlm-u
 Route::delete('/mlm-users/{id}', [MLMUserController::class, 'destroy'])->name('mlm-users.destroy');
 
 // ✉️ Activation
-Route::get('/activate/{token}', [MLMUserController::class, 'activate'])->name('mlm.activate');
-Route::post('/mlm-users/{id}/resend-activation', [MLMUserController::class, 'resendActivation'])->name('mlm-users.resend-activation');
+Route::post('/mlm-users/{id}/resend-activation', [MLMActivationController::class, 'resend'])->name('mlm-users.resend-activation');
 
 // 🌳 Holding Tank & Tree Placement
 Route::get('/holding-tank', [MLMUserController::class, 'holdingTank'])->name('holding-tank');
@@ -1081,8 +1094,10 @@ Route::get('/pending-earnings', [WalletController::class, 'pendingEarnings'])
 
     // ── Purchase History ───────────────────────────────────────────────
     Route::get('purchase-history', [PurchaseHistoryController::class, 'index'])->name('purchase-history.index');
-    Route::get('purchase-history/{id}', [PurchaseHistoryController::class, 'show'])->name('purchase-history.show');
+    Route::get('pending-orders', [PurchaseHistoryController::class, 'pendingOrders'])->name('pending-orders.index');
 
+    Route::get('purchase-history/{id}', [PurchaseHistoryController::class, 'show'])->name('purchase-history.show');
+    Route::post('purchase-history/{id}/confirm', [PurchaseHistoryController::class, 'confirmOrder'])->name('purchase-history.confirm');
     // ── Referral Income Logs ───────────────────────────────────────────
     Route::get('referral-income-logs', [ReferralIncomeLogController::class, 'index'])->name('referral-income-logs.index');
 

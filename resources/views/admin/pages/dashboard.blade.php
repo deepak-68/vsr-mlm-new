@@ -13,9 +13,9 @@
                         </div>
                         <div class="col-md-4 text-md-end mt-3 mt-md-0">
                           
-                            <button class="btn btn-light text-primary">
+                            <a type="button" href="{{ route('reports.purchase') }}" class="btn btn-light text-primary">
                                 <i class="las la-file-alt me-2"></i>View Reports
-                            </button>
+                            </a>
                         </div>
                     </div>
                 </div>
@@ -23,8 +23,8 @@
 
             <!-- Stats Cards -->
             <div class="row">
-                <div class="col-xl-3 col-lg-6 col-sm-6">
-                    <div class="card border-0 shadow-sm">
+                <div class="col-xl-3 col-lg-4 col-sm-6 mb-3">
+                    <div class="card border-0 shadow-sm h-100">
                         <div class="card-body">
                             <div class="d-flex align-items-center">
                                 <div class="icon-box bg-success bg-opacity-10 rounded-3 p-3 me-3">
@@ -40,8 +40,8 @@
                     </div>
                 </div>
 
-                <div class="col-xl-3 col-lg-6 col-sm-6">
-                    <div class="card border-0 shadow-sm">
+                <div class="col-xl-3 col-lg-4 col-sm-6 mb-3">
+                    <div class="card border-0 shadow-sm h-100">
                         <div class="card-body">
                             <div class="d-flex align-items-center">
                                 <div class="icon-box bg-primary bg-opacity-10 rounded-3 p-3 me-3">
@@ -58,8 +58,26 @@
                     </div>
                 </div>
 
-                <div class="col-xl-3 col-lg-6 col-sm-6">
-                    <div class="card border-0 shadow-sm">
+                <div class="col-xl-3 col-lg-4 col-sm-6 mb-3">
+                    <a href="{{ route('purchase-history.index') }}" class="text-decoration-none d-block h-100">
+                        <div class="card border-0 shadow-sm h-100">
+                            <div class="card-body">
+                                <div class="d-flex align-items-center">
+                                    <div class="icon-box bg-warning bg-opacity-10 rounded-3 p-3 me-3">
+                                        <i class="las la-hourglass-half text-warning fs-2"></i>
+                                    </div>
+                                    <div class="flex-grow-1">
+                                        <p class="text-muted mb-1 fs-14">Pending Orders <small class="text-warning"><i class="las la-external-link-alt"></i></small></p>
+                                        <h3 class="mb-0 fw-bold text-warning">{{ $orderPending }}</h3>                                        
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </a>
+                </div>
+
+                <div class="col-xl-3 col-lg-4 col-sm-6 mb-3">
+                    <div class="card border-0 shadow-sm h-100">
                         <div class="card-body">
                             <div class="d-flex align-items-center">
                                 <div class="icon-box bg-purple bg-opacity-10 rounded-3 p-3 me-3">
@@ -76,8 +94,8 @@
                     </div>
                 </div>
 
-                <div class="col-xl-3 col-lg-6 col-sm-6">
-                    <div class="card border-0 shadow-sm">
+                <div class="col-xl-3 col-lg-4 col-sm-6">
+                    <div class="card border-0 shadow-sm h-100">
                         <div class="card-body">
                             <div class="d-flex align-items-center">
                                 <div class="icon-box bg-pink bg-opacity-10 rounded-3 p-3 me-3">
@@ -93,6 +111,7 @@
                         </div>
                     </div>
                 </div>
+
             </div>
 
             <!-- Main Content Grid -->
@@ -197,7 +216,7 @@
 
                             <div class="bg-dark text-white rounded-3 p-3 text-center">
                                 <p class="mb-0 fs-14">TOTAL TREE NODES</p>
-                                <h3 class="mb-0 fw-bold">{{ $totalNodes }}</h3>
+                                <h3 class="mb-0 fw-bold text-white">{{ $totalNodes }}</h3>
                             </div>
                         </div>
                     </div>
@@ -274,6 +293,50 @@
 
                             <div class="progress" style="height: 8px;">
                                 <div class="progress-bar bg-success" role="progressbar" style="width: {{ $inventoryPercentage }}%"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- KYC Status -->
+                <div class="col-xl-4 col-lg-6">
+                    <div class="card border-0 shadow-sm">
+                        <div class="card-body p-4">
+                            <div class="d-flex align-items-center mb-4">
+                                <div class="icon-box bg-warning bg-opacity-10 rounded-3 p-2 me-3">
+                                    <i class="las la-id-card text-warning fs-4"></i>
+                                </div>
+                                <h5 class="mb-0 fw-bold text-dark">KYC Status</h5>
+                            </div>
+
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <div class="d-flex align-items-center">
+                                    <span class="bg-warning rounded-circle me-2" style="width: 8px; height: 8px;"></span>
+                                    <span class="text-muted">Pending</span>
+                                </div>
+                                <span class="fw-bold text-warning">{{ $pendingKyc }}</span>
+                            </div>
+
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <div class="d-flex align-items-center">
+                                    <span class="bg-success rounded-circle me-2" style="width: 8px; height: 8px;"></span>
+                                    <span class="text-muted">Approved</span>
+                                </div>
+                                <span class="fw-bold text-success">{{ $approvedKyc }}</span>
+                            </div>
+
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div class="d-flex align-items-center">
+                                    <span class="bg-danger rounded-circle me-2" style="width: 8px; height: 8px;"></span>
+                                    <span class="text-muted">Rejected</span>
+                                </div>
+                                <span class="fw-bold text-danger">{{ $rejectedKyc }}</span>
+                            </div>
+
+                            <div class="mt-3 pt-3 border-top">
+                                <a href="{{ route('kyc-documents.index') }}" class="btn btn-sm btn-outline-warning w-100">
+                                    <i class="las la-external-link-alt me-1"></i>View All KYC
+                                </a>
                             </div>
                         </div>
                     </div>

@@ -114,7 +114,7 @@ class DashboardController extends Controller
         $currentRightCC = $payoutBalance?->right_cc ?? 0;
 
         // Order history (last 10)
-        $orderHistory = Order::with('items')
+        $orderHistory = Order::with(['items', 'invoice', 'purchasedForUser'])
             ->where('user_id', $userId)
             ->latest('created_at')
             ->limit(10)

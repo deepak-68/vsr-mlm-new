@@ -42,7 +42,10 @@ class MLMActivationController extends Controller
             ->where('verification_expires', '>', now())->first();
 
         if (!$user) {
-            return view('admin.pages.mlm.activation-error', ['message' => 'Invalid or expired link.']);
+            return view('admin.pages.mlm.activation-error', [
+                'message' => 'The activation link is invalid or has expired.',
+                'userPanelUrl' => config('app.user_panel_url'),
+            ]);
         }
 
         $user->update([
@@ -54,7 +57,8 @@ class MLMActivationController extends Controller
 
         return view('admin.pages.mlm.activation-success', [
             'userName' => $user->user_name,
-            'email' => $user->email
+            'email' => $user->email,
+            'userPanelUrl' => config('app.user_panel_url'),
         ]);
     }
 }

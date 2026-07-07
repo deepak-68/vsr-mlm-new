@@ -9,6 +9,7 @@ use App\Models\MlmUser;
 use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\PayoutBalance;
+use App\Models\Kyc;
 use App\Models\PayoutConfig;
 use App\Models\Product;
 use App\Models\SpillingPreference;
@@ -147,9 +148,17 @@ class MLMUserController extends Controller
             ->latest()
             ->paginate(10);
 
-        // ✅ Get ALL active users as parents (INCLUDING Founder01)
-        $parents = MlmUser::where('is_active', true)
-            ->where('is_deleted', false)
+        // ✅ Only parents with at least one free position (left or right vacant)
+        $parents = MlmUser::where('is_active', true)->where('is_deleted', false)
+            ->whereHas('tree', function ($q) {
+                $q->where(function ($placed) {
+                    $placed->whereNotNull('parent_id')->orWhere('mlm_user_id', 1);
+                })
+                ->where(function ($free) {
+                    $free->whereDoesntHave('children', fn($c) => $c->where('position', 'left'))
+                         ->orWhereDoesntHave('children', fn($c) => $c->where('position', 'right'));
+                });
+            })
             ->orderBy('user_name')
             ->get(['id', 'user_name', 'first_name', 'last_name']);
 
@@ -438,7 +447,12 @@ class MLMUserController extends Controller
             $inventoryPercentage = $totalProducts > 0 ? round(($inStock / $totalProducts) * 100) : 0;
         }
 
-        // 7. Bonus Value
+        // 7. KYC Status
+        $pendingKyc = Kyc::where('status', 'pending')->count();
+        $approvedKyc = Kyc::where('status', 'approved')->count();
+        $rejectedKyc = Kyc::where('status', 'rejected')->count();
+
+        // 8. Bonus Value
         $leftTeamVolume = 0; 
         $rightTeamVolume = 0;
         $leftCarryVolume = 0;
@@ -447,13 +461,22 @@ class MLMUserController extends Controller
 
         $eligibleCount = $pendingApprovals;
 
+        // 9. Order KPIs
+        $orderTotal = \App\Models\Order::count();
+        $orderPending = \App\Models\Order::where('status', 'PENDING')->count();
+        $orderCompleted = \App\Models\Order::where('status', 'COMPLETED')->count();
+        $orderRevenue = \App\Models\Order::where('status', 'COMPLETED')->sum('total_amount');
+        $orderToday = \App\Models\Order::whereDate('created_at', today())->count();
+
         return view('admin.pages.dashboard', compact(
             'pendingApprovals', 'totalRevenue', 'totalOrders', 'completedOrders',
             'activeUsers', 'newUsersToday', 'totalPayout', 'directSellers',
             'eligibleCount', 'leftNodes', 'rightNodes', 'totalNodes',
             'customerCount', 'inactiveCount', 'totalProducts', 'lowStock',
             'outOfStock', 'inventoryPercentage', 'leftTeamVolume', 'rightTeamVolume',
-            'leftCarryVolume', 'rightCarryVolume', 'totalBV'
+            'leftCarryVolume', 'rightCarryVolume', 'totalBV',
+            'pendingKyc', 'approvedKyc', 'rejectedKyc',
+            'orderTotal', 'orderPending', 'orderCompleted', 'orderRevenue', 'orderToday'
         ));
     }
 
@@ -462,11 +485,12 @@ class MLMUserController extends Controller
         $user = MlmUser::where('verification_token', $token)->first();
 
         if (!$user) {
-            // return view('activation.invalid');
-            dd('invalid activation token');
+            //show masage and redirect to login page
+            return response()->json(['message' => 'Invalid activation token.'], 400);
         }
 
         $user->update([
+            'is_active' => true,
             'is_verified' => true,
             'verification_token' => null,
         ]);
