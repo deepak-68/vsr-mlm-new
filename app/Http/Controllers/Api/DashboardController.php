@@ -2,20 +2,20 @@
 
 namespace App\Http\Controllers\Api;
 
+use \App\Models\IncomeLog;
 use App\Http\Controllers\Controller;
+use App\Http\Resources\MlmUserResource;
 use App\Models\Invoice;
 use App\Models\MlmUser;
-use App\Models\OrderItem;
 use App\Models\Order;
+use App\Models\OrderItem;
 use App\Models\PayoutBalance;
 use App\Models\PayoutTransaction;
+use App\Models\Rank;
+use App\Models\UserRank;
+use App\Models\UserReward;
 use App\Models\WalletBalance;
 use App\Models\WalletTransaction;
-use App\Models\UserReward;
-use App\Models\UserRank;
-use App\Models\Rank;
-use App\Services\SelfCCService;
-use App\Http\Resources\MlmUserResource;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -41,8 +41,10 @@ class DashboardController extends Controller
         // Direct business
         $directBusiness = MlmUser::where('sponsor_id', $userId)->where('is_deleted', 0)->count();
 
-        // Referral CC (total CC earned as sponsor from downline purchases)
-        $referralCC = app(SelfCCService::class)->getTotalCcAsSponsor($userId);
+        // Direct Income CC from income_logs
+        $directIncomeCC = \App\Models\IncomeLog::where('user_id', $userId)
+            ->where('income_type', 'direct')
+            ->sum('cc_amount');
 
         // User rank
         $userRank = UserRank::where('mlm_user_id', $userId)->where('is_current', true)
@@ -53,48 +55,36 @@ class DashboardController extends Controller
         $walletBalance = WalletBalance::where('user_id', $userId)->where('wallet_id', 1)->first();
         $fundWallet = $walletBalance?->balance ?? 0;
 
-        // ===== 6 INCOME KPIs =====
- 
-        // 2. Direct Income — sponsor commission
-        $directIncomeCC = PayoutTransaction::where('mlm_user_id', $userId)
-            ->where('type', 'direct_income')->orWhere('type', 'direct_income')->sum('cc_amount');
-        $directIncomeAmount = PayoutTransaction::where('mlm_user_id', $userId)
-            ->where('type', 'direct_income')->sum('currency_amount');
+        // ===== 6 INCOME KPIs from income_logs =====
+
+        $dirLogs = \App\Models\IncomeLog::where('user_id', $userId)->where('income_type', 'direct');
+        $directIncomeCC = (clone $dirLogs)->sum('cc_amount');
+        $directIncomeAmount = (clone $dirLogs)->sum('currency_amount');
         $directIncomeLifetime = $directIncomeCC;
 
-        // 3. Matching Income — binary pair commission
-        $matchingIncomeCC = PayoutTransaction::where('mlm_user_id', $userId)
-            ->where('type', 'matching_income')->sum('cc_amount');
-        $matchingIncomeAmount = PayoutTransaction::where('mlm_user_id', $userId)
-            ->where('type', 'matching_income')->sum('currency_amount');
+        $matLogs = IncomeLog::where('user_id', $userId)->where('income_type', 'matching');
+        $matchingIncomeCC = (clone $matLogs)->sum('cc_amount');
+        $matchingIncomeAmount = (clone $matLogs)->sum('currency_amount');
         $matchingIncomeLifetime = $matchingIncomeCC;
 
-        // 4. Level Income — generation/level commission
-        $levelIncomeCC = PayoutTransaction::where('mlm_user_id', $userId)
-            ->where('type', 'level_income')->sum('cc_amount');
-        $levelIncomeAmount = PayoutTransaction::where('mlm_user_id', $userId)
-            ->where('type', 'level_income')->sum('currency_amount');
+        $levLogs = \App\Models\IncomeLog::where('user_id', $userId)->where('income_type', 'level');
+        $levelIncomeCC = (clone $levLogs)->sum('cc_amount');
+        $levelIncomeAmount = (clone $levLogs)->sum('currency_amount');
         $levelIncomeLifetime = $levelIncomeCC;
 
-        // 5. Reward & Tour Income
-        $rewardIncomeCC = PayoutTransaction::where('mlm_user_id', $userId)
-            ->where('type', 'reward_income')->sum('cc_amount');
-        $rewardIncomeAmount = PayoutTransaction::where('mlm_user_id', $userId)
-            ->where('type', 'reward_income')->sum('currency_amount');
+        $rewLogs = \App\Models\IncomeLog::where('user_id', $userId)->where('income_type', 'reward_tour');
+        $rewardIncomeCC = (clone $rewLogs)->sum('cc_amount');
+        $rewardIncomeAmount = (clone $rewLogs)->sum('currency_amount');
         $rewardIncomeLifetime = $rewardIncomeCC;
 
-        // 6. Repurchase Income — commission from own repurchases
-        $repurchaseIncomeCC = PayoutTransaction::where('mlm_user_id', $userId)
-            ->where('type', 'repurchase_income')->sum('cc_amount');
-        $repurchaseIncomeAmount = PayoutTransaction::where('mlm_user_id', $userId)
-            ->where('type', 'repurchase_income')->sum('currency_amount');
+        $repLogs = \App\Models\IncomeLog::where('user_id', $userId)->where('income_type', 'repurchase');
+        $repurchaseIncomeCC = (clone $repLogs)->sum('cc_amount');
+        $repurchaseIncomeAmount = (clone $repLogs)->sum('currency_amount');
         $repurchaseIncomeLifetime = $repurchaseIncomeCC;
 
-        // 7. Rank Income — rank-based bonuses
-        $rankIncomeCC = PayoutTransaction::where('mlm_user_id', $userId)
-            ->where('type', 'rank_bonus')->sum('cc_amount');
-        $rankIncomeAmount = PayoutTransaction::where('mlm_user_id', $userId)
-            ->where('type', 'rank_bonus')->sum('currency_amount');
+        $rankLogs = \App\Models\IncomeLog::where('user_id', $userId)->where('income_type', 'rank');
+        $rankIncomeCC = (clone $rankLogs)->sum('cc_amount');
+        $rankIncomeAmount = (clone $rankLogs)->sum('currency_amount');
         $rankIncomeLifetime = $rankIncomeCC;
 
         // Total across all income types
@@ -121,7 +111,7 @@ class DashboardController extends Controller
                 'left_team' => $leftTeam,
                 'right_team' => $rightTeam,
                 'direct_business' => $directBusiness,
-                'self_cc' => $referralCC,
+                'direct_cc' => $directIncomeCC,
                 'fund_wallet' => $fundWallet,
                 'current_left_cc' => $currentLeftCC,
                 'current_right_cc' => $currentRightCC,

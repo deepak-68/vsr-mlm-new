@@ -6,13 +6,13 @@ use App\Http\Controllers\Controller;
 use App\Http\Resources\MlmUserResource;
 use App\Models\CcPointSetting;
 use App\Models\CCSetting;
+use App\Models\IncomeLog;
 use App\Models\MlmUser;
 use App\Models\OrderItem;
 use App\Models\PayoutTransaction;
 use App\Models\Product;
 use App\Models\WalletBalance;
 use App\Models\WalletTransaction;
-use App\Services\SelfCCService;
 use Illuminate\Http\Request;
 
 class WalletController extends Controller
@@ -61,10 +61,11 @@ class WalletController extends Controller
 
         $userId = $request->user_id;
 
-        // Referral CC (total CC earned as sponsor from downline purchases)
-        $referralCC = app(SelfCCService::class)->getTotalCcAsSponsor($userId);
+        // Total CC earned from all income logs
+        $directIncomeCC = IncomeLog::where('user_id', $userId)
+            ->where('income_type', 'direct')
+            ->sum('cc_amount');
 
-        // Total CC earned from all payout transactions
         $payoutCC = PayoutTransaction::where('mlm_user_id', $userId)
             ->sum('cc_amount');
 
@@ -72,7 +73,7 @@ class WalletController extends Controller
         $walletBalance = WalletBalance::where('user_id', $userId)->where('wallet_id', 1)->first();
         $fundWalletBalance = $walletBalance?->balance ?? 0;
 
-        $totalCC = $referralCC + $payoutCC;
+        $totalCC = $directIncomeCC + $payoutCC;
 
         // Get conversion rate
         $conversionRate = CCSetting::getActiveRate();
@@ -84,7 +85,7 @@ class WalletController extends Controller
                 'total_cc' => $totalCC,
                 'converted_amount' => $convertedAmount,
                 'conversion_rate' => $conversionRate,
-                'self_cc' => $referralCC,
+                'direct_cc' => $directIncomeCC,
                 'payout_cc' => $payoutCC,
                 'fund_wallet_balance' => $fundWalletBalance,
             ],

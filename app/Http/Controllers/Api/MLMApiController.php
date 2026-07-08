@@ -29,7 +29,6 @@ class MLMApiController extends Controller
 
         $baseQuery = MlmUser::query()
             ->with(['detail'])
-            ->withSum('userOrder as self_cc', 'total_cc_points')
             ->where('sponsor_id', $user->id)
             ->where('is_deleted', false);
 
