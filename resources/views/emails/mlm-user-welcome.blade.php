@@ -209,34 +209,38 @@
         font-size: 11px;
         margin-top: 10px;
     }
-    .mail-header-section{
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
+    /* Email-safe table layout (flexbox not supported in email clients) */
+    .mail-header-section, .footer-section {
+        width: 100%;
     }
+    .header-logo { text-align: left; }
+    .header-title { text-align: center; }
+    .header-date { text-align: right; }
 </style>
 </head>
 <body>
     <div class="welcome-letter-container" id="welcomeLetter">
         <div class="letter-paper">
             
-            <!-- Header with Logo -->
+            <!-- Header with Logo (table layout for email compatibility) -->
             <div class="letter-header">
-                <div class="row align-items-center mail-header-section" >
-                    <div class="col-3">
-                        <img src="{{ asset('images/logo/hozlogo.png') }}" alt="Company Logo" class="company-logo">
-                    </div>
-                    <div class="col-6 text-center">
-                        <h2 class="company-name">VSR MLM NETWORK</h2>
-                        <p class="company-tagline">Empowering Your Financial Future</p>
-                    </div>
-                    <div class="col-3 text-end">
-                        <div class="letter-date">
-                            <strong>Date:</strong><br>
-                            {{ \Carbon\Carbon::parse($user->created_at)->format('d-m-Y') }}
-                        </div>
-                    </div>
-                </div>
+                <table class="mail-header-section" cellpadding="0" cellspacing="0" border="0">
+                    <tr>
+                        <td class="header-logo" width="220">
+                            <img src="{{ url('images/logo/vsr-logo.png') }}" alt="VSR MLM Network Logo" class="company-logo" width="220" style="max-width:220px;height:auto;">
+                        </td>
+                        <td class="header-title">
+                            <h2 class="company-name">VSR MLM NETWORK</h2>
+                            <p class="company-tagline">Empowering Your Financial Future</p>
+                        </td>
+                        <td class="header-date" width="150">
+                            <div class="letter-date">
+                                <strong>Date:</strong><br>
+                                {{ \Carbon\Carbon::parse($user->created_at)->format('d-m-Y') }}
+                            </div>
+                        </td>
+                    </tr>
+                </table>
             </div>
 
             <!-- Divider -->
@@ -286,7 +290,7 @@
                     </tr>
                     <tr>
                         <td class="label-cell"><strong>Address:</strong></td>
-                        <td class="value-cell" colspan="3">{{ $user->address ?? 'N/A' }}, {{ $user->district ?? '' }} - {{ $user->pincode ?? '' }}, {{ $user->state ?? '' }}</td>
+                        <td class="value-cell" colspan="3">{{ $user->detail?->address_line_1 ?? 'N/A' }}, {{ $user->detail?->address_line_1 ?? 'N/A' }}, {{ $user->detail?->district ?? '' }}, {{ $user->detail?->state ?? '' }} - {{ $user->detail?->pincode ?? '' }}</td>
                     </tr>
                     <tr>
                         <td class="label-cell"><strong>Date of Joining:</strong></td>
@@ -328,24 +332,26 @@
                 </p>
             </div>
 
-            <!-- Signature Section -->
+            <!-- Signature Section (table layout for email compatibility) -->
             <div class="signature-section">
-                <div class="row">
-                    <div class="col-6">
-                        <div class="signature-box">
-                            <div class="signature-line"></div>
-                            <p><strong>For {{ $user->first_name }} {{ $user->last_name }}</strong></p>
-                            <p class="signature-role">Member</p>
-                        </div>
-                    </div>
-                    <div class="col-6">
-                        <div class="signature-box text-end">
-                            <div class="signature-line ms-auto"></div>
-                            <p><strong>For VSR MLM NETWORK</strong></p>
-                            <p class="signature-role">Authorized Signatory</p>
-                        </div>
-                    </div>
-                </div>
+                <table class="footer-section" cellpadding="0" cellspacing="0" border="0" width="100%">
+                    <tr>
+                        <td width="50%">
+                            <div class="signature-box">
+                                <div class="signature-line"></div>
+                                <p><strong>For {{ $user->first_name }} {{ $user->last_name }}</strong></p>
+                                <p class="signature-role">Member</p>
+                            </div>
+                        </td>
+                        <td width="50%" style="text-align:right;">
+                            <div class="signature-box" style="text-align:right;">
+                                <div class="signature-line" style="margin-left:auto;"></div>
+                                <p><strong>For VSR MLM NETWORK</strong></p>
+                                <p class="signature-role">Authorized Signatory</p>
+                            </div>
+                        </td>
+                    </tr>
+                </table>
             </div>
 
             <!-- Footer -->

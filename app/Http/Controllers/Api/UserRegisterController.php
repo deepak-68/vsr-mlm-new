@@ -68,7 +68,7 @@ class UserRegisterController extends Controller
         }
 
         $user = MlmUser::create([
-            'user_name'     => $request->user_name,
+            'user_name' => 'VSR-' . preg_replace('/\s+/', '-', trim($request->user_name)),
             'track_id'      => 'TRK' . date('Y') . strtoupper(Str::random(6)) . time(),
             'sponsor_id'    => $sponsor->id,
             'first_name'    => $request->first_name,
@@ -106,9 +106,9 @@ class UserRegisterController extends Controller
         ]);
         $activationUrl = route('mlm.activate', ['token' => $user->verification_token]);
         try {
-            Mail::to($user->email)->send(new MlmActivationMail($user, $activationUrl));
+            Mail::to($user->email)->queue(new MlmActivationMail($user, $activationUrl));
 
-            Mail::to($user->email)->send(new MlmUserWelcomeMail($user));
+            Mail::to($user->email)->queue(new MlmUserWelcomeMail($user));
 
         } catch (\Exception $e) {
             Log::error('Failed to send MLM emails', [

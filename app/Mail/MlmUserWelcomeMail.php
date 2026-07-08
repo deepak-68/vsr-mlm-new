@@ -32,7 +32,7 @@ class MlmUserWelcomeMail extends Mailable
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: 'Mlm User Welcome Mail',
+            subject: 'Congratulations! Welcome to VSR MLM Network',
         );
     }
 

@@ -17,9 +17,9 @@ class RootMlmUserSeeder extends Seeder
      */
     private const ROOT_USERNAME = 'Founder01';
     private const ROOT_TRACK_ID = 'ROOT01'; // 30 chars
-    private const ROOT_EMAIL = 'founder@mlm.local';
+    private const ROOT_EMAIL = 'vsr@visoraushaven.com';
     private const ROOT_PHONE = '9999999999';
-    private const ROOT_PASSWORD = 'Founder@2024'; // 🔐 Change in production!
+    private const ROOT_PASSWORD = 'vsr@12345'; // 🔐 Change in production!
 
     public function run(): void
     {

@@ -53,15 +53,8 @@ class DashboardController extends Controller
         $walletBalance = WalletBalance::where('user_id', $userId)->where('wallet_id', 1)->first();
         $fundWallet = $walletBalance?->balance ?? 0;
 
-        // ===== 7 INCOME KPIs =====
-
-        // 1. Retail Income — direct sales commission from own product purchases (self-commission)
-        $retailIncomeCC = PayoutTransaction::where('mlm_user_id', $userId)
-            ->where('type', 'retail_income')->sum('cc_amount');
-        $retailIncomeAmount = PayoutTransaction::where('mlm_user_id', $userId)
-            ->where('type', 'retail_income')->sum('currency_amount');
-        $retailIncomeLifetime = $retailIncomeCC;
-
+        // ===== 6 INCOME KPIs =====
+ 
         // 2. Direct Income — sponsor commission
         $directIncomeCC = PayoutTransaction::where('mlm_user_id', $userId)
             ->where('type', 'direct_income')->orWhere('type', 'direct_income')->sum('cc_amount');
@@ -105,7 +98,7 @@ class DashboardController extends Controller
         $rankIncomeLifetime = $rankIncomeCC;
 
         // Total across all income types
-        $totalIncomeCC = $retailIncomeCC + $directIncomeCC + $matchingIncomeCC + $levelIncomeCC
+        $totalIncomeCC = $directIncomeCC + $matchingIncomeCC + $levelIncomeCC
             + $rewardIncomeCC + $repurchaseIncomeCC + $rankIncomeCC;
 
         // Current left/right CC (from payout balance)
@@ -135,13 +128,7 @@ class DashboardController extends Controller
                 'order_history' => $orderHistory,
 
                 // 7 Income KPIs
-                'income_kpis' => [
-                    'retail_income' => [
-                        'label' => 'Retail Income',
-                        'current_cc' => $retailIncomeCC,
-                        'current_amount' => $retailIncomeAmount,
-                        'lifetime_total' => $retailIncomeLifetime,
-                    ],
+                'income_kpis' => [ 
                     'direct_income' => [
                         'label' => 'Direct Income',
                         'current_cc' => $directIncomeCC,

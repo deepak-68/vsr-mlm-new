@@ -43,7 +43,7 @@ class AuthController extends Controller
         }
 
         $mlmUser = MlmUser::with([
-                'detail:id,user_id,profile_image'
+                'detail'
             ])
             ->where(function ($query) use ($request) {
                 $query->where('user_name', $request->username)
@@ -95,6 +95,8 @@ class AuthController extends Controller
                 'profile_image' => $mlmUser->profile_image,
                 'membership_type' => $mlmUser->membership_type,
                 'is_payout_active' => $mlmUser->is_payout_active,
+                'created_at' => $mlmUser->created_at,
+                'address' => $mlmUser->address_line_1,
             ]
         ]);
     }
@@ -113,7 +115,7 @@ class AuthController extends Controller
 
     public function me(Request $request)
     {
-        $user = $request->user()->load(['detail:id,user_id,profile_image']);
+        $user = $request->user()->load(['detail']);
         $user->profile_image = !empty($user->detail?->profile_image)
             ? asset('storage/' . $user->detail->profile_image)
             : null;
@@ -131,6 +133,9 @@ class AuthController extends Controller
                 'profile_image' => $user->profile_image,
                 'membership_type' => $user->membership_type,
                 'is_payout_active' => $user->is_payout_active,
+                'created_at' => $user->created_at,
+                'address' => $user->address_line_1,
+
             ],
         ]);
     }

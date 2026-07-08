@@ -22,6 +22,8 @@ class DatabaseSeeder extends Seeder
             SeoPagesSeeder::class,
             ContentSeeder::class,
             RanksAndRewardsSeeder::class,
+            AdminBankDetailSeeder::class,
+            ProductSeeder::class,
         ]);
     }
 }
