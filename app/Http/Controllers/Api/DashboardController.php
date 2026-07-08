@@ -2,20 +2,14 @@
 
 namespace App\Http\Controllers\Api;
 
-use \App\Models\IncomeLog;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\MlmUserResource;
-use App\Models\Invoice;
+use App\Models\IncomeLog;
 use App\Models\MlmUser;
 use App\Models\Order;
-use App\Models\OrderItem;
 use App\Models\PayoutBalance;
-use App\Models\PayoutTransaction;
-use App\Models\Rank;
 use App\Models\UserRank;
-use App\Models\UserReward;
 use App\Models\WalletBalance;
-use App\Models\WalletTransaction;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -72,24 +66,14 @@ class DashboardController extends Controller
         $levelIncomeAmount = (clone $levLogs)->sum('currency_amount');
         $levelIncomeLifetime = $levelIncomeCC;
 
-        $rewLogs = \App\Models\IncomeLog::where('user_id', $userId)->where('income_type', 'reward_tour');
-        $rewardIncomeCC = (clone $rewLogs)->sum('cc_amount');
-        $rewardIncomeAmount = (clone $rewLogs)->sum('currency_amount');
-        $rewardIncomeLifetime = $rewardIncomeCC;
-
         $repLogs = \App\Models\IncomeLog::where('user_id', $userId)->where('income_type', 'repurchase');
         $repurchaseIncomeCC = (clone $repLogs)->sum('cc_amount');
         $repurchaseIncomeAmount = (clone $repLogs)->sum('currency_amount');
         $repurchaseIncomeLifetime = $repurchaseIncomeCC;
 
-        $rankLogs = \App\Models\IncomeLog::where('user_id', $userId)->where('income_type', 'rank');
-        $rankIncomeCC = (clone $rankLogs)->sum('cc_amount');
-        $rankIncomeAmount = (clone $rankLogs)->sum('currency_amount');
-        $rankIncomeLifetime = $rankIncomeCC;
-
         // Total across all income types
         $totalIncomeCC = $directIncomeCC + $matchingIncomeCC + $levelIncomeCC
-            + $rewardIncomeCC + $repurchaseIncomeCC + $rankIncomeCC;
+            + $repurchaseIncomeCC;
 
         // Current left/right CC (from payout balance)
         $payoutBalance = PayoutBalance::where('mlm_user_id', $userId)->first();
@@ -137,23 +121,11 @@ class DashboardController extends Controller
                         'current_amount' => $levelIncomeAmount,
                         'lifetime_total' => $levelIncomeLifetime,
                     ],
-                    'reward_tour_income' => [
-                        'label' => 'Reward & Tour Income',
-                        'current_cc' => $rewardIncomeCC,
-                        'current_amount' => $rewardIncomeAmount,
-                        'lifetime_total' => $rewardIncomeLifetime,
-                    ],
                     'repurchase_income' => [
                         'label' => 'Repurchase Income',
                         'current_cc' => $repurchaseIncomeCC,
                         'current_amount' => $repurchaseIncomeAmount,
                         'lifetime_total' => $repurchaseIncomeLifetime,
-                    ],
-                    'rank_income' => [
-                        'label' => 'Rank Income',
-                        'current_cc' => $rankIncomeCC,
-                        'current_amount' => $rankIncomeAmount,
-                        'lifetime_total' => $rankIncomeLifetime,
                     ],
                 ],
 

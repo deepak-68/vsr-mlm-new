@@ -20,6 +20,7 @@ class PurchaseService
     private const MIN_PRODUCTS_FOR_ACTIVATION = 2;
 
     public function __construct(
+        private readonly BinaryMatchingService $binaryMatchingService,
         private readonly PayoutService $payoutService,
         private readonly LevelIncomeService $levelIncomeService,
         private readonly RepurchaseIncomeService $repurchaseIncomeService,
@@ -106,7 +107,7 @@ class PurchaseService
 
                 $buyer = MlmUser::find($actualUserId);
                 if ($buyer) {
-                    $this->payoutService->processPairMatching($buyer, $ccPoints, $order->id);
+                    $this->binaryMatchingService->processOrderMatching($order, $ccPoints);
 
                     $this->levelIncomeService->processLevelIncome($order, $ccPoints);
 
@@ -162,7 +163,7 @@ class PurchaseService
 
         $buyer = MlmUser::find($userId);
         if ($buyer) {
-            $this->payoutService->processPairMatching($buyer, $ccPoints, $order->id);
+            $this->binaryMatchingService->processOrderMatching($order, $ccPoints);
 
             $this->levelIncomeService->processLevelIncome($order, $ccPoints);
 

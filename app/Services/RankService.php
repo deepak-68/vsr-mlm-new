@@ -1,14 +1,9 @@
 <?php
 namespace App\Services;
 
-use App\Models\CCSetting;
-use App\Models\IncomeLog;
 use App\Models\Rank;
 use App\Models\UserRank;
 use App\Models\MlmUser;
-use App\Models\OrderItem;
-use App\Models\WalletBalance;
-use App\Models\WalletTransaction;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -17,7 +12,6 @@ class RankService
     public function __construct(
         private readonly SelfCCService $selfCCService,
         private readonly NotificationService $notificationService,
-        private readonly IncomeLogService $incomeLogService,
     ) {}
 
     private function getTotalCc(int $userId): float
@@ -69,8 +63,6 @@ class RankService
                     $tree->update(['rank' => $nextRank->slug]);
                 }
 
-                $this->generateRankIncome($userId, $nextRank, $userRank);
-
                 return $userRank;
             });
         } catch (\Throwable $e) {
@@ -81,67 +73,6 @@ class RankService
             ]);
             return null;
         }
-    }
-
-    private function generateRankIncome(int $userId, Rank $rank, UserRank $userRank): void
-    {
-        $reward = $rank->reward;
-        if (!$reward) {
-            Log::info('No reward configured for rank', ['rank_id' => $rank->id, 'rank' => $rank->name]);
-            return;
-        }
-
-        $rewardValueCc = (float) ($reward->value_cc ?? 0);
-        if ($rewardValueCc <= 0) {
-            return;
-        }
-
-        $ccRate = CCSetting::getActiveRate();
-        $currencyAmount = $rewardValueCc * $ccRate;
-
-        $wallet = WalletBalance::firstOrCreate(
-            ['user_id' => $userId, 'wallet_id' => 1],
-            ['balance' => 0, 'total_earned' => 0]
-        );
-
-        $wallet->increment('balance', $currencyAmount);
-        $wallet->increment('total_earned', $currencyAmount);
-        $wallet->refresh();
-
-        WalletTransaction::create([
-            'wallet_id' => 1,
-            'user_id' => $userId,
-            'type' => 'credit',
-            'amount' => $currencyAmount,
-            'balance_after' => $wallet->balance,
-            'reference_type' => 'rank_income',
-            'reference_id' => $userRank->id,
-            'status' => 'completed',
-            'description' => "Rank income for achieving {$rank->name}",
-        ]);
-
-        $this->incomeLogService->log(
-            userId: $userId,
-            incomeType: 'rank',
-            ccAmount: $rewardValueCc,
-            currencyAmount: $currencyAmount,
-            referenceType: 'rank',
-            referenceId: $userRank->id,
-            remarks: "Rank income for achieving {$rank->name} - {$rewardValueCc} CC",
-        );
-
-        $this->notificationService->createIncomeNotification(
-            $userId,
-            $currencyAmount,
-            "Rank Income - {$rank->name}"
-        );
-
-        Log::info('Rank income generated', [
-            'user_id' => $userId,
-            'rank' => $rank->name,
-            'value_cc' => $rewardValueCc,
-            'currency_amount' => $currencyAmount,
-        ]);
     }
 
     public function getUserCurrentRank(int $userId): ?Rank
@@ -186,10 +117,4 @@ class RankService
         return $progress;
     }
 
-    public function getTotalRankIncome(int $userId): float
-    {
-        return (float) IncomeLog::where('user_id', $userId)
-            ->where('income_type', 'rank')
-            ->sum('currency_amount');
-    }
 }

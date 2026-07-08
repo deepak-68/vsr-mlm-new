@@ -22,6 +22,7 @@ class OrderConfirmationService
         private readonly PurchaseService $purchaseService,
         private readonly MailNotificationService $mailService,
         private readonly PayoutService $payoutService,
+        private readonly BinaryMatchingService $binaryMatchingService,
         private readonly LevelIncomeService $levelIncomeService,
         private readonly RepurchaseIncomeService $repurchaseIncomeService,
         private readonly RankService $rankService,
@@ -138,17 +139,22 @@ class OrderConfirmationService
     private function stepMatchingIncome(Order $order): array
     {
         $ccPoints = (float) ($order->total_cc_points ?? 0);
-        $buyer = $order->user;
 
-        if (!$buyer || $ccPoints <= 0) {
-            return ['matched' => false, 'reason' => 'No buyer or CC points'];
+        if ($ccPoints <= 0) {
+            return ['matched' => false, 'reason' => 'No CC points'];
         }
 
-        $results = $this->payoutService->processPairMatching($buyer, $ccPoints, $order->id);
+        $results = $this->binaryMatchingService->processOrderMatching($order, $ccPoints);
+
+        $totalPairs = collect($results)->sum('pairs');
+        $totalIncome = collect($results)->sum('income');
 
         return [
             'matched' => !empty($results),
-            'pairs' => $results,
+            'ancestors_matched' => count($results),
+            'total_pairs' => $totalPairs,
+            'total_income' => $totalIncome,
+            'details' => $results,
         ];
     }
 

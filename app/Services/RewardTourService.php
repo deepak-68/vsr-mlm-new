@@ -2,23 +2,15 @@
 
 namespace App\Services;
 
-use App\Models\CCSetting;
-use App\Models\IncomeLog;
-use App\Models\MLMTreeClosure;
-use App\Models\MlmUser;
 use App\Models\OrderItem;
-use App\Models\PayoutBalance;
 use App\Models\Reward;
 use App\Models\UserReward;
-use App\Models\WalletBalance;
-use App\Models\WalletTransaction;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 class RewardTourService
 {
     public function __construct(
-        private readonly IncomeLogService $incomeLogService,
         private readonly NotificationService $notificationService,
     ) {}
 
@@ -60,51 +52,10 @@ class RewardTourService
                 ]);
 
                 $rewardValue = (float) ($reward->value_cc ?? 0);
-                if ($rewardValue > 0) {
-                    $ccRate = CCSetting::getActiveRate();
-                    $currencyAmount = $rewardValue * $ccRate;
-
-                    $wallet = WalletBalance::firstOrCreate(
-                        ['user_id' => $userId, 'wallet_id' => 1],
-                        ['balance' => 0, 'total_earned' => 0]
-                    );
-
-                    $wallet->increment('balance', $currencyAmount);
-                    $wallet->increment('total_earned', $currencyAmount);
-                    $wallet->refresh();
-
-                    WalletTransaction::create([
-                        'wallet_id' => 1,
-                        'user_id' => $userId,
-                        'type' => 'credit',
-                        'amount' => $currencyAmount,
-                        'balance_after' => $wallet->balance,
-                        'reference_type' => 'reward_income',
-                        'reference_id' => $userReward->id,
-                        'status' => 'completed',
-                        'description' => "Reward income: {$reward->name}",
-                    ]);
-
-                    $this->incomeLogService->log(
-                        userId: $userId,
-                        incomeType: 'reward_tour',
-                        ccAmount: $rewardValue,
-                        currencyAmount: $currencyAmount,
-                        referenceType: 'reward',
-                        referenceId: $userReward->id,
-                        remarks: "Reward income: {$reward->name}",
-                    );
-
-                    $this->notificationService->createIncomeNotification(
-                        $userId,
-                        $currencyAmount,
-                        "Reward - {$reward->name}"
-                    );
-                }
 
                 $this->notificationService->createRewardNotification($userId, $reward->name);
 
-                Log::info('Reward income generated', [
+                Log::info('Reward achieved', [
                     'user_id' => $userId,
                     'reward_id' => $reward->id,
                     'reward_name' => $reward->name,
@@ -114,7 +65,7 @@ class RewardTourService
                 return $userReward;
             });
         } catch (\Throwable $e) {
-            Log::error('Reward income generation failed', [
+            Log::error('Reward achievement failed', [
                 'user_id' => $userId,
                 'reward_id' => $reward->id,
                 'error' => $e->getMessage(),
@@ -168,13 +119,6 @@ class RewardTourService
             ->toArray();
 
         return $userRewards;
-    }
-
-    public function getTotalRewardIncome(int $userId): float
-    {
-        return (float) IncomeLog::where('user_id', $userId)
-            ->where('income_type', 'reward_tour')
-            ->sum('currency_amount');
     }
 
     private function getUserTotalCC(int $userId): float

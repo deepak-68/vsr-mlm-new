@@ -15,16 +15,11 @@ class LevelIncomeService
 {
     private const MAX_LEVELS = 10;
     private const LEVEL_PERCENTAGES = [
-        1 => 10.0,
-        2 => 5.0,
+        1 => 6.0,
+        2 => 4.0,
         3 => 3.0,
         4 => 2.0,
-        5 => 1.5,
-        6 => 1.0,
-        7 => 0.75,
-        8 => 0.50,
-        9 => 0.25,
-        10 => 0.10,
+        5 => 1.0,
     ];
 
     public function __construct(

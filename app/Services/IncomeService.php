@@ -16,6 +16,7 @@ use Illuminate\Support\Facades\Log;
 class IncomeService
 {
     public function __construct(
+        private readonly BinaryMatchingService $binaryMatchingService,
         private readonly PayoutService $payoutService,
         private readonly IncomeLogService $incomeLogService,
         private readonly NotificationService $notificationService,
@@ -73,14 +74,7 @@ class IncomeService
 
     public function processBinaryIncome(Order $order, float $orderCC, int $userId): array
     {
-        $user = MlmUser::find($userId);
-        if (!$user) {
-            return ['matched' => false, 'levels' => 0];
-        }
-
-        $results = $this->payoutService->processPairMatching($user, $orderCC, $order->id);
-
-        $this->notificationService->createIncomeNotification($userId, $orderCC, 'Matching Income');
+        $results = $this->binaryMatchingService->processOrderMatching($order, $orderCC);
 
         Log::info('Binary income processed', [
             'order_id' => $order->id,

@@ -150,13 +150,6 @@ class WalletIncomeApiController extends Controller
         try {
             $summary = $this->incomeService->getIncomeSummary($request->user_id);
 
-            $rankIncome = $this->rankService->getTotalRankIncome($request->user_id);
-            $rewardTourIncome = $this->rewardTourService->getTotalRewardIncome($request->user_id);
-
-            $summary['rank_income'] = $rankIncome;
-            $summary['reward_tour_income'] = $rewardTourIncome;
-            $summary['total_income'] += $rankIncome + $rewardTourIncome;
-
             return response()->json([
                 'success' => true,
                 'data' => $summary,
