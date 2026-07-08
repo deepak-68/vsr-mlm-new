@@ -357,7 +357,17 @@
                     <li><a href="{{ route('user-rewards.index') }}">User Rewards</a></li>
                     <li><a href="{{ route('pending-orders.index') }}">Pending Orders</a></li>
                     <li><a href="{{ route('purchase-history.index') }}">Purchase History</a></li>
-                    <li><a href="{{ route('referral-income-logs.index') }}">Referral Income Logs</a></li>
+                    <li><a class="has-arrow" href="javascript:void()" aria-expanded="false">Income Logs</a>
+                        <ul aria-expanded="false">
+                            <li><a href="{{ route('referral-income-logs.index') }}?income_type=direct">Direct Income</a></li>
+                            <li><a href="{{ route('referral-income-logs.index') }}?income_type=matching">Matching Income</a></li>
+                            <li><a href="{{ route('referral-income-logs.index') }}?income_type=level">Level Income</a></li>
+                            <li><a href="{{ route('referral-income-logs.index') }}?income_type=repurchase">Repurchase Income</a></li>
+                            <li><a href="{{ route('referral-income-logs.index') }}?income_type=rank">Rank Income</a></li>
+                            <li><a href="{{ route('referral-income-logs.index') }}?income_type=reward_tour">Reward & Tour</a></li>
+                            <li><a href="{{ route('referral-income-logs.index') }}">All Income Logs</a></li>
+                        </ul>
+                    </li>
                     <li><a href="{{ route('notification-logs.index') }}">Notifications</a></li>
                 </ul>
             </li>

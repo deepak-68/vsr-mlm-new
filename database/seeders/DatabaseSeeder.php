@@ -24,6 +24,7 @@ class DatabaseSeeder extends Seeder
             RanksAndRewardsSeeder::class,
             AdminBankDetailSeeder::class,
             ProductSeeder::class,
+            CCSettingSeeder::class,
         ]);
     }
 }

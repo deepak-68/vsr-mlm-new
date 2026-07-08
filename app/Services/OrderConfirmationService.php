@@ -21,15 +21,24 @@ class OrderConfirmationService
         private readonly HistoryService $historyService,
         private readonly PurchaseService $purchaseService,
         private readonly MailNotificationService $mailService,
+        private readonly PayoutService $payoutService,
+        private readonly LevelIncomeService $levelIncomeService,
+        private readonly RepurchaseIncomeService $repurchaseIncomeService,
+        private readonly RankService $rankService,
+        private readonly RewardTourService $rewardTourService,
     ) {
         $this->pipeline = [
-            'order_confirmed' => fn(Order $o) => $this->stepConfirmOrder($o),
-            'self_cc'         => fn(Order $o) => $this->stepAccumulateSelfCC($o),
-            'direct_income'   => fn(Order $o) => $this->stepDirectIncome($o),
-            'invoice'         => fn(Order $o) => $this->stepInvoice($o),
-            'notification'    => fn(Order $o) => $this->stepNotification($o),
-            'email_invoice'   => fn(Order $o) => $this->stepEmailInvoice($o),
-            'email_sponsor_cc' => fn(Order $o) => $this->stepEmailSponsorCc($o),
+            'order_confirmed'    => fn(Order $o) => $this->stepConfirmOrder($o),
+            'self_cc'            => fn(Order $o) => $this->stepAccumulateSelfCC($o),
+            'direct_income'      => fn(Order $o) => $this->stepDirectIncome($o),
+            'matching_income'    => fn(Order $o) => $this->stepMatchingIncome($o),
+            'level_income'       => fn(Order $o) => $this->stepLevelIncome($o),
+            'repurchase_income'  => fn(Order $o) => $this->stepRepurchaseIncome($o),
+            'rank_check'         => fn(Order $o) => $this->stepRankCheck($o),
+            'invoice'            => fn(Order $o) => $this->stepInvoice($o),
+            'notification'       => fn(Order $o) => $this->stepNotification($o),
+            'email_invoice'      => fn(Order $o) => $this->stepEmailInvoice($o),
+            'email_sponsor_cc'   => fn(Order $o) => $this->stepEmailSponsorCc($o),
         ];
     }
 
@@ -51,6 +60,12 @@ class OrderConfirmationService
             $order->lockForUpdate();
 
             foreach ($this->pipeline as $step => $callback) {
+                if ($this->historyService->hasStep($order, $step)) {
+                    Log::info("Skipping already-processed step '{$step}'", ['order_id' => $order->id]);
+                    $results[$step] = ['skipped' => true, 'reason' => 'Already processed'];
+                    continue;
+                }
+
                 try {
                     $result = $callback($order);
                     $this->historyService->logSuccess($order, $step, $result ?? []);
@@ -89,15 +104,11 @@ class OrderConfirmationService
         return array_keys($this->pipeline);
     }
 
-    // ── Helpers ───────────────────────────────────────────────────────
-
     private function getRecipientUser(Order $order): ?MlmUser
     {
         $recipientId = $order->purchased_for_user_id ?? $order->user_id;
         return MlmUser::find($recipientId);
     }
-
-    // ── Pipeline Steps ────────────────────────────────────────────────
 
     private function stepConfirmOrder(Order $order): array
     {
@@ -124,6 +135,85 @@ class OrderConfirmationService
         return $this->incomeService->processDirectIncome($order, $quantity, $commission);
     }
 
+    private function stepMatchingIncome(Order $order): array
+    {
+        $ccPoints = (float) ($order->total_cc_points ?? 0);
+        $buyer = $order->user;
+
+        if (!$buyer || $ccPoints <= 0) {
+            return ['matched' => false, 'reason' => 'No buyer or CC points'];
+        }
+
+        $results = $this->payoutService->processPairMatching($buyer, $ccPoints, $order->id);
+
+        return [
+            'matched' => !empty($results),
+            'pairs' => $results,
+        ];
+    }
+
+    private function stepLevelIncome(Order $order): array
+    {
+        $ccPoints = (float) ($order->total_cc_points ?? 0);
+
+        if ($ccPoints <= 0) {
+            return ['levels_distributed' => 0];
+        }
+
+        $results = $this->levelIncomeService->processLevelIncome($order, $ccPoints);
+
+        return [
+            'levels_distributed' => count($results),
+            'details' => $results,
+        ];
+    }
+
+    private function stepRepurchaseIncome(Order $order): array
+    {
+        $userId = $order->user_id;
+
+        if (!$this->repurchaseIncomeService->isRepurchase($userId)) {
+            return ['is_repurchase' => false, 'reason' => 'First purchase'];
+        }
+
+        $ccPoints = (float) ($order->total_cc_points ?? 0);
+        $results = $this->repurchaseIncomeService->processRepurchaseIncome($order, $ccPoints);
+
+        return [
+            'is_repurchase' => true,
+            'commission_generated' => !empty($results),
+            'details' => $results,
+        ];
+    }
+
+    private function stepRankCheck(Order $order): array
+    {
+        $userId = $order->user_id;
+
+        $userRank = $this->rankService->checkAndUpgradeRank($userId);
+
+        if ($userRank) {
+            $this->notificationService->createRankNotification(
+                $userId,
+                $userRank->rank->name ?? 'New Rank'
+            );
+
+            $this->rewardTourService->checkAndGenerateRewardIncome($userId, $userRank->rank_id);
+
+            $rankIncomeAmount = (float) ($userRank->rank?->reward?->value_cc ?? 0);
+
+            return [
+                'rank_upgraded' => true,
+                'rank_name' => $userRank->rank->name ?? 'Unknown',
+                'rank_income_cc' => $rankIncomeAmount,
+            ];
+        }
+
+        return [
+            'rank_upgraded' => false,
+        ];
+    }
+
     private function stepInvoice(Order $order): array
     {
         $cc = $this->selfCCService->getOrderCC($order);
@@ -145,7 +235,6 @@ class OrderConfirmationService
         $recipient = $this->getRecipientUser($order);
         $recipientId = $recipient ? $recipient->id : $order->user_id;
 
-        // Notify the recipient
         $this->notificationService->create(
             $recipientId,
             'purchase',
@@ -154,7 +243,6 @@ class OrderConfirmationService
         );
         $count++;
 
-        // If different from payer, notify the payer too
         if ($recipientId !== $order->user_id) {
             $payer = $order->user;
             if ($payer) {

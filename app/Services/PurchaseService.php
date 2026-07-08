@@ -12,11 +12,22 @@ use App\Models\WalletTransaction;
 use App\Models\Invoice;
 use App\Models\Notification;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 class PurchaseService
 {
     private const MIN_PRODUCTS_FOR_ACTIVATION = 2;
+
+    public function __construct(
+        private readonly PayoutService $payoutService,
+        private readonly LevelIncomeService $levelIncomeService,
+        private readonly RepurchaseIncomeService $repurchaseIncomeService,
+        private readonly RankService $rankService,
+        private readonly RewardTourService $rewardTourService,
+        private readonly NotificationService $notificationService,
+        private readonly IncomeLogService $incomeLogService,
+    ) {}
 
     public function purchase(
         int $userId,
@@ -87,23 +98,35 @@ class PurchaseService
                 ]);
 
             if (!$isManual) {
-                // Check activation (min 2 products purchased)
                 $this->checkAndActivateUser($actualUserId);
 
-                // Cumulative commission calculation
                 $commission = $this->updateCommissionLevel($actualUserId);
 
-                $this->generateDirectIncome(
-                    $actualUserId,
-                    $commission,
-                    $order,
-                    $quantity,
-                );
+                $this->generateDirectIncome($actualUserId, $commission, $order, $quantity);
 
-                // Auto-generate invoice
+                $buyer = MlmUser::find($actualUserId);
+                if ($buyer) {
+                    $this->payoutService->processPairMatching($buyer, $ccPoints, $order->id);
+
+                    $this->levelIncomeService->processLevelIncome($order, $ccPoints);
+
+                    if ($this->repurchaseIncomeService->isRepurchase($actualUserId)) {
+                        $this->repurchaseIncomeService->processRepurchaseIncome($order, $ccPoints);
+                    }
+
+                    $userRank = $this->rankService->checkAndUpgradeRank($actualUserId);
+                    if ($userRank) {
+                        $this->notificationService->createRankNotification(
+                            $actualUserId,
+                            $userRank->rank->name ?? 'New Rank'
+                        );
+
+                        $this->rewardTourService->checkAndGenerateRewardIncome($actualUserId, $userRank->rank_id);
+                    }
+                }
+
                 $this->generateInvoice($order, $userId, $ccPoints);
 
-                // Send invoice email to the paying user
                 try {
                     $invoice = Invoice::where('order_id', $order->id)->first();
                     $recipient = MlmUser::find($userId);
@@ -111,10 +134,9 @@ class PurchaseService
                         app(MailNotificationService::class)->sendInvoiceToUser($recipient, $invoice);
                     }
                 } catch (\Throwable $e) {
-                    \Illuminate\Support\Facades\Log::warning('Invoice email failed: ' . $e->getMessage());
+                    Log::warning('Invoice email failed: ' . $e->getMessage());
                 }
 
-                // Create in-app notification for both payer and recipient
                 $this->createPurchaseNotification($actualUserId, $order, $ccPoints);
                 if ($userId !== $actualUserId) {
                     $this->createPurchaseNotification($userId, $order, $ccPoints);
@@ -123,6 +145,37 @@ class PurchaseService
 
             return $order->load('items');
         });
+    }
+
+    public function processAllIncomes(Order $order): void
+    {
+        $ccPoints = (float) ($order->total_cc_points ?? 0);
+        $userId = $order->user_id;
+
+        if ($ccPoints <= 0) {
+            return;
+        }
+
+        $commission = $this->updateCommissionLevel($userId);
+
+        $this->generateDirectIncome($userId, $commission, $order, (int) $order->items->sum('quantity'));
+
+        $buyer = MlmUser::find($userId);
+        if ($buyer) {
+            $this->payoutService->processPairMatching($buyer, $ccPoints, $order->id);
+
+            $this->levelIncomeService->processLevelIncome($order, $ccPoints);
+
+            if ($this->repurchaseIncomeService->isRepurchase($userId)) {
+                $this->repurchaseIncomeService->processRepurchaseIncome($order, $ccPoints);
+            }
+
+            $userRank = $this->rankService->checkAndUpgradeRank($userId);
+            if ($userRank) {
+                $this->notificationService->createRankNotification($userId, $userRank->rank->name ?? 'New Rank');
+                $this->rewardTourService->checkAndGenerateRewardIncome($userId, $userRank->rank_id);
+            }
+        }
     }
 
     public function checkAndActivateUser(int $userId): void
@@ -143,12 +196,10 @@ class PurchaseService
     {
         $user = MlmUser::findOrFail($userId);
 
-        // Calculate total lifetime quantity
         $totalQuantity = OrderItem::whereHas('order', function ($query) use ($userId) {
             $query->where('user_id', $userId)->where('status', 'COMPLETED');
         })->sum('quantity');
 
-        // Commission tiers based on cumulative lifetime purchases
         $percentage = match (true) {
             $totalQuantity >= 40 => 20,
             $totalQuantity >= 20 => 18,
@@ -175,7 +226,6 @@ class PurchaseService
             return;
         }
 
-        // CC points from order × conversion rate (CC × ₹)
         $orderCC = (float) ($order->total_cc_points ?? 0);
         $ccRate = CCSetting::getActiveRate();
         $totalAmount = $orderCC * $ccRate;
@@ -188,7 +238,6 @@ class PurchaseService
             description: "Direct income from User {$userId}"
         );
 
-        // Log to income_logs
         try {
             app(IncomeLogService::class)->logFromOrder(
                 order: $order,
@@ -200,7 +249,13 @@ class PurchaseService
                 remarks: "Direct income from User #{$userId} - {$quantity} product(s)"
             );
         } catch (\Throwable $e) {
-            \Illuminate\Support\Facades\Log::warning('IncomeLog failed: ' . $e->getMessage());
+            Log::warning('IncomeLog failed: ' . $e->getMessage());
+        }
+
+        try {
+            $this->notificationService->createIncomeNotification($sponsorId, $totalAmount, 'Direct Income');
+        } catch (\Throwable $e) {
+            Log::warning('Direct income notification failed: ' . $e->getMessage());
         }
     }
 
@@ -220,7 +275,7 @@ class PurchaseService
 
     private function validateUserPosition(int $userId): void
     {
-        $parentId = MlmTree::where('mlm_user_id', $userId)->value('parent_id');
+        $parentId = MLMTree::where('mlm_user_id', $userId)->value('parent_id');
 
         if ($userId != 1 && !$parentId) {
             throw new \DomainException('You are not positioned under any sponsor.');
@@ -239,11 +294,10 @@ class PurchaseService
             'status' => 'GENERATED',
         ]);
 
-        // Generate PDF in background
         try {
             app(InvoiceService::class)->generate($order);
         } catch (\Throwable $e) {
-            \Illuminate\Support\Facades\Log::warning('Invoice PDF generation failed: ' . $e->getMessage());
+            Log::warning('Invoice PDF generation failed: ' . $e->getMessage());
         }
     }
 

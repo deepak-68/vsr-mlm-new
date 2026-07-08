@@ -3,9 +3,10 @@
 namespace App\Services;
 
 use App\Models\CCSetting;
-use App\Models\Order;
+use App\Models\IncomeLog;
 use App\Models\MLMTree;
 use App\Models\MlmUser;
+use App\Models\Order;
 use App\Models\WalletBalance;
 use App\Models\WalletTransaction;
 use App\Services\NotificationService;
@@ -18,6 +19,8 @@ class IncomeService
         private readonly PayoutService $payoutService,
         private readonly IncomeLogService $incomeLogService,
         private readonly NotificationService $notificationService,
+        private readonly LevelIncomeService $levelIncomeService,
+        private readonly RepurchaseIncomeService $repurchaseIncomeService,
     ) {}
 
     public function processDirectIncome(Order $order, int $quantity, int $commission): array
@@ -29,7 +32,6 @@ class IncomeService
             return ['sponsor_id' => null, 'amount' => 0];
         }
 
-        // CC points from order × conversion rate (CC × ₹)
         $orderCC = (float) ($order->total_cc_points ?? 0);
         $ccRate = CCSetting::getActiveRate();
         $totalAmount = $orderCC * $ccRate;
@@ -76,7 +78,7 @@ class IncomeService
             return ['matched' => false, 'levels' => 0];
         }
 
-        $result = $this->payoutService->processPairMatching($user, $orderCC);
+        $results = $this->payoutService->processPairMatching($user, $orderCC, $order->id);
 
         $this->notificationService->createIncomeNotification($userId, $orderCC, 'Matching Income');
 
@@ -87,8 +89,52 @@ class IncomeService
         ]);
 
         return [
-            'matched' => true,
-            'result'  => $result,
+            'matched' => !empty($results),
+            'result'  => $results,
+        ];
+    }
+
+    public function processLevelIncome(Order $order, float $orderCC): array
+    {
+        return $this->levelIncomeService->processLevelIncome($order, $orderCC);
+    }
+
+    public function processRepurchaseIncome(Order $order, float $orderCC): array
+    {
+        if (!$this->repurchaseIncomeService->isRepurchase($order->user_id)) {
+            return ['is_repurchase' => false];
+        }
+
+        return $this->repurchaseIncomeService->processRepurchaseIncome($order, $orderCC);
+    }
+
+    public function getTotalDirectIncome(int $userId): float
+    {
+        return (float) IncomeLog::where('user_id', $userId)
+            ->where('income_type', 'direct')
+            ->sum('currency_amount');
+    }
+
+    public function getTotalMatchingIncome(int $userId): float
+    {
+        return (float) IncomeLog::where('user_id', $userId)
+            ->where('income_type', 'matching')
+            ->sum('currency_amount');
+    }
+
+    public function getIncomeSummary(int $userId): array
+    {
+        $direct = $this->getTotalDirectIncome($userId);
+        $matching = $this->getTotalMatchingIncome($userId);
+        $level = $this->levelIncomeService->getTotalLevelIncome($userId);
+        $repurchase = $this->repurchaseIncomeService->getTotalRepurchaseIncome($userId);
+
+        return [
+            'direct_income' => $direct,
+            'matching_income' => $matching,
+            'level_income' => $level,
+            'repurchase_income' => $repurchase,
+            'total_income' => $direct + $matching + $level + $repurchase,
         ];
     }
 

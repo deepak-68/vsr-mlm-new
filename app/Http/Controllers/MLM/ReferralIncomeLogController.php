@@ -46,6 +46,8 @@ class ReferralIncomeLogController extends Controller
                 ->make(true);
         }
 
-        return view('admin.pages.referral-income-logs.index');
+        return view('admin.pages.referral-income-logs.index', [
+            'selectedIncomeType' => $request->income_type ?? '',
+        ]);
     }
 }

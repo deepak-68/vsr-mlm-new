@@ -23,7 +23,7 @@
                     <select id="incomeTypeFilter" class="form-control form-control-sm d-inline-block" style="width: auto;">
                         <option value="">All Types</option>
                         @foreach(\App\Models\IncomeLog::distinct('income_type')->pluck('income_type') as $type)
-                            <option value="{{ $type }}">{{ ucfirst($type) }}</option>
+                            <option value="{{ $type }}" {{ $selectedIncomeType === $type ? 'selected' : '' }}>{{ ucfirst(str_replace('_', ' ', $type)) }}</option>
                         @endforeach
                     </select>
                 </div>

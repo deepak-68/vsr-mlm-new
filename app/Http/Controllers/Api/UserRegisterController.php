@@ -134,7 +134,7 @@ class UserRegisterController extends Controller
 
         return response()->json([
             'status' => true,
-            'message' => 'Registration successful.',
+            'message' => 'Registration successful. Please check mail and activate your id',
             'data' => new MlmUserResource($user)
         ], 201);
     }

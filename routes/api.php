@@ -187,6 +187,16 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('matching-income', [WalletController::class, 'matchingIncome']);
     Route::get('wallet', [WalletController::class, 'userWallet']);
     Route::get('income-log', [IncomeLogController::class, 'index']);
+    Route::get('income-summary', [WalletIncomeApiController::class, 'getIncomeSummary']);
+    Route::get('level-income', [WalletIncomeApiController::class, 'getLevelIncome']);
+    Route::get('repurchase-income', [WalletIncomeApiController::class, 'getRepurchaseIncome']);
+    Route::get('rank-income', [WalletIncomeApiController::class, 'getRankIncome']);
+    Route::get('reward-tour-income', [WalletIncomeApiController::class, 'getRewardTourIncome']);
+    Route::get('generation-income', [WalletIncomeApiController::class, 'getGenerationIncome']);
+    Route::get('account-summary', [WalletIncomeApiController::class, 'getAccountSummary']);
+    Route::get('awards-rewards', [WalletIncomeApiController::class, 'getAwardsRewards']);
+    Route::get('retreat-tours', [WalletIncomeApiController::class, 'getRetreatTours']);
+    Route::get('weekly-payout', [WalletIncomeApiController::class, 'getWeeklyPayout']);
     Route::get('downline-rank', [WalletIncomeApiController::class, 'getDownlineRank']);
 
     // User Bank Details

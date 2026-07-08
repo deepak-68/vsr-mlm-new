@@ -3,561 +3,382 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\IncomeLog;
+use App\Models\MlmUser;
+use App\Models\PayoutBalance;
+use App\Models\PayoutTransaction;
+use App\Models\Rank;
+use App\Models\UserRank;
+use App\Models\UserReward;
+use App\Models\WalletBalance;
 use App\Models\WalletTransaction;
-use App\Models\CashBonusRequest;
-use App\Models\ClaimCashRequest;
-use App\Models\CashBonusHistory;
-use App\Models\AwardReward;
+use App\Services\IncomeService;
+use App\Services\LevelIncomeService;
+use App\Services\PayoutService;
+use App\Services\RankService;
+use App\Services\RepurchaseIncomeService;
+use App\Services\RewardTourService;
 use Illuminate\Http\Request;
 
 class WalletIncomeApiController extends Controller
 {
-    /**
-     * Get all wallet transactions
-     */
+    public function __construct(
+        private readonly IncomeService $incomeService,
+        private readonly LevelIncomeService $levelIncomeService,
+        private readonly RepurchaseIncomeService $repurchaseIncomeService,
+        private readonly PayoutService $payoutService,
+        private readonly RankService $rankService,
+        private readonly RewardTourService $rewardTourService,
+    ) {}
+
     public function getWalletTransactions(Request $request)
     {
+        $request->validate(['user_id' => 'required|exists:mlm_users,id']);
+
         try {
             $query = WalletTransaction::where('user_id', $request->user_id);
 
-            // Filter by reference type
             if ($request->filled('reference_type') && $request->reference_type !== 'all') {
                 $query->where('reference_type', $request->reference_type);
             }
-
-            // Filter by transaction type (credit/debit)
             if ($request->filled('type') && $request->type !== 'all') {
                 $query->where('type', $request->type);
             }
-
-            // Filter by date range
             if ($request->filled('date_from')) {
                 $query->whereDate('created_at', '>=', $request->date_from);
             }
-
             if ($request->filled('date_to')) {
                 $query->whereDate('created_at', '<=', $request->date_to);
             }
 
             $transactions = $query->orderBy('created_at', 'desc')->get();
-
             $totalCredit = $transactions->where('type', 'credit')->sum('amount');
             $totalDebit = $transactions->where('type', 'debit')->sum('amount');
 
             return response()->json([
                 'success' => true,
                 'data' => $transactions,
-                'totals' => [
-                    'credit' => $totalCredit,
-                    'debit' => $totalDebit,
-                ],
-                'message' => 'Wallet transactions fetched successfully'
+                'totals' => ['credit' => $totalCredit, 'debit' => $totalDebit],
             ]);
         } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Failed to fetch wallet transactions',
-                'error' => $e->getMessage()
-            ], 500);
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
         }
     }
 
-    /**
-     * Get Direct Income
-     */
     public function getDirectIncome(Request $request)
     {
-        try {
-            $query = WalletTransaction::where('user_id', $request->user_id)
-                ->where('reference_type', 'direct_income');
-
-            if ($request->filled('date_from')) {
-                $query->whereDate('created_at', '>=', $request->date_from);
-            }
-
-            if ($request->filled('date_to')) {
-                $query->whereDate('created_at', '<=', $request->date_to);
-            }
-
-            $transactions = $query->orderBy('created_at', 'desc')->get();
-
-            $totalCredit = $transactions->where('type', 'credit')->sum('amount');
-            $totalDebit = $transactions->where('type', 'debit')->sum('amount');
-
-            return response()->json([
-                'success' => true,
-                'data' => $transactions,
-                'totals' => [
-                    'credit' => $totalCredit,
-                    'debit' => $totalDebit,
-                ]
-            ]);
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Failed to fetch direct income',
-                'error' => $e->getMessage()
-            ], 500);
-        }
+        return $this->getIncomeByType($request, 'direct');
     }
 
-    /**
-     * Get Matching Income
-     */
     public function getMatchingIncome(Request $request)
     {
+        return $this->getIncomeByType($request, 'matching');
+    }
+
+    public function getLevelIncome(Request $request)
+    {
+        return $this->getIncomeByType($request, 'level');
+    }
+
+    public function getRepurchaseIncome(Request $request)
+    {
+        return $this->getIncomeByType($request, 'repurchase');
+    }
+
+    public function getRankIncome(Request $request)
+    {
+        return $this->getIncomeByType($request, 'rank');
+    }
+
+    public function getRewardTourIncome(Request $request)
+    {
+        return $this->getIncomeByType($request, 'reward_tour');
+    }
+
+    private function getIncomeByType(Request $request, string $incomeType)
+    {
+        $request->validate(['user_id' => 'required|exists:mlm_users,id']);
+
         try {
-            $query = WalletTransaction::where('user_id', $request->user_id)
-                ->where('reference_type', 'matching_income');
+            $query = IncomeLog::where('user_id', $request->user_id)
+                ->where('income_type', $incomeType)
+                ->with('fromUser:id,user_name,first_name,last_name');
 
             if ($request->filled('date_from')) {
                 $query->whereDate('created_at', '>=', $request->date_from);
             }
-
             if ($request->filled('date_to')) {
                 $query->whereDate('created_at', '<=', $request->date_to);
             }
 
-            $transactions = $query->orderBy('created_at', 'desc')->get();
+            $perPage = $request->input('per_page', 50);
+            $logs = $query->orderBy('created_at', 'desc')->paginate($perPage);
 
-            $totalCredit = $transactions->where('type', 'credit')->sum('amount');
+            $totalCurrency = $logs->sum('currency_amount');
+            $totalCc = $logs->sum('cc_amount');
 
             return response()->json([
                 'success' => true,
-                'data' => $transactions,
+                'data' => $logs->items(),
                 'totals' => [
-                    'credit' => $totalCredit,
-                    'debit' => 0,
-                ]
+                    'currency_amount' => $totalCurrency,
+                    'cc_amount' => $totalCc,
+                ],
+                'pagination' => [
+                    'current_page' => $logs->currentPage(),
+                    'last_page' => $logs->lastPage(),
+                    'per_page' => $logs->perPage(),
+                    'total' => $logs->total(),
+                    'from' => $logs->firstItem(),
+                    'to' => $logs->lastItem(),
+                ],
             ]);
         } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Failed to fetch matching income',
-                'error' => $e->getMessage()
-            ], 500);
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
         }
     }
 
-    /**
-     * Get Generation Income
-     */
     public function getGenerationIncome(Request $request)
     {
-        try {
-            $query = WalletTransaction::where('user_id', $request->user_id)
-                ->where('reference_type', 'generation_income');
-
-            if ($request->filled('date_from')) {
-                $query->whereDate('created_at', '>=', $request->date_from);
-            }
-
-            if ($request->filled('date_to')) {
-                $query->whereDate('created_at', '<=', $request->date_to);
-            }
-
-            $transactions = $query->orderBy('created_at', 'desc')->get();
-
-            $totalCredit = $transactions->where('type', 'credit')->sum('amount');
-            $totalDebit = $transactions->where('type', 'debit')->sum('amount');
-
-            return response()->json([
-                'success' => true,
-                'data' => $transactions,
-                'totals' => [
-                    'credit' => $totalCredit,
-                    'debit' => $totalDebit,
-                ]
-            ]);
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Failed to fetch generation income',
-                'error' => $e->getMessage()
-            ], 500);
-        }
+        return $this->getIncomeByType($request, 'level');
     }
 
-    /**
-     * Get Cash Bonus Requests
-     */
-    public function getCashBonusRequests(Request $request)
+    public function getIncomeSummary(Request $request)
     {
+        $request->validate(['user_id' => 'required|exists:mlm_users,id']);
+
         try {
-            $query = CashBonusRequest::where('user_id', $request->user_id);
+            $summary = $this->incomeService->getIncomeSummary($request->user_id);
 
-            if ($request->filled('type') && $request->type !== 'all') {
-                $query->where('status', $request->type);
-            }
+            $rankIncome = $this->rankService->getTotalRankIncome($request->user_id);
+            $rewardTourIncome = $this->rewardTourService->getTotalRewardIncome($request->user_id);
 
-            $data = $query->orderBy('created_at', 'desc')->get();
+            $summary['rank_income'] = $rankIncome;
+            $summary['reward_tour_income'] = $rewardTourIncome;
+            $summary['total_income'] += $rankIncome + $rewardTourIncome;
 
             return response()->json([
                 'success' => true,
-                'data' => $data,
-                'message' => 'Cash bonus requests fetched successfully'
+                'data' => $summary,
             ]);
         } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Failed to fetch cash bonus requests',
-                'error' => $e->getMessage()
-            ], 500);
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
         }
     }
 
-    /**
-     * Get Claim Cash Requests
-     */
-    public function getClaimCashRequests(Request $request)
-    {
-        try {
-            $query = ClaimCashRequest::where('user_id', $request->user_id);
-
-            if ($request->filled('date_from')) {
-                $query->whereDate('created_at', '>=', $request->date_from);
-            }
-
-            if ($request->filled('date_to')) {
-                $query->whereDate('created_at', '<=', $request->date_to);
-            }
-
-            $data = $query->orderBy('created_at', 'desc')->get();
-
-            return response()->json([
-                'success' => true,
-                'data' => $data,
-                'message' => 'Claim cash requests fetched successfully'
-            ]);
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Failed to fetch claim requests',
-                'error' => $e->getMessage()
-            ], 500);
-        }
-    }
-
-    /**
-     * Get Cash Bonus History
-     */
-    public function getCashBonusHistory(Request $request)
-    {
-        try {
-            $query = CashBonusHistory::where('user_id', $request->user_id);
-
-            if ($request->filled('date_from')) {
-                $query->whereDate('created_at', '>=', $request->date_from);
-            }
-
-            if ($request->filled('date_to')) {
-                $query->whereDate('created_at', '<=', $request->date_to);
-            }
-
-            $data = $query->orderBy('created_at', 'desc')->get();
-
-            return response()->json([
-                'success' => true,
-                'data' => $data,
-                'message' => 'Cash bonus history fetched successfully'
-            ]);
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Failed to fetch cash bonus history',
-                'error' => $e->getMessage()
-            ], 500);
-        }
-    }
-
-    /**
-     * Get Awards and Rewards
-     */
-    public function getAwardsRewards(Request $request)
-    {
-        try {
-            $query = AwardReward::where('user_id', $request->user_id);
-
-            if ($request->filled('type')) {
-                switch ($request->type) {
-                    case 'current_business':
-                        $query->whereMonth('created_at', now()->month)
-                              ->whereYear('created_at', now()->year);
-                        break;
-                    case 'closing_wise':
-                        $query->whereDate('created_at', '>=', now()->subDays(30));
-                        break;
-                    case 'date_calendar':
-                        if ($request->filled('date_from')) {
-                            $query->whereDate('created_at', '>=', $request->date_from);
-                        }
-                        if ($request->filled('date_to')) {
-                            $query->whereDate('created_at', '<=', $request->date_to);
-                        }
-                        break;
-                }
-            }
-
-            $data = $query->orderBy('created_at', 'desc')->get();
-
-            return response()->json([
-                'success' => true,
-                'data' => $data,
-                'message' => 'Awards and rewards fetched successfully'
-            ]);
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Failed to fetch awards and rewards',
-                'error' => $e->getMessage()
-            ], 500);
-        }
-    }
-
-    /**
-     * Get Account Summary (All Transactions)
-     */
     public function getAccountSummary(Request $request)
     {
+        $request->validate(['user_id' => 'required|exists:mlm_users,id']);
+
         try {
             $query = WalletTransaction::where('user_id', $request->user_id);
 
             $type = $request->get('type', 'all');
-
             switch ($type) {
                 case 'current_business':
-                    $query->whereMonth('created_at', now()->month)
-                          ->whereYear('created_at', now()->year);
+                    $query->whereMonth('created_at', now()->month)->whereYear('created_at', now()->year);
                     break;
-                
                 case 'date_calendar':
-                    if ($request->filled('date_from')) {
-                        $query->whereDate('created_at', '>=', $request->date_from);
-                    }
-                    if ($request->filled('date_to')) {
-                        $query->whereDate('created_at', '<=', $request->date_to);
-                    }
+                    if ($request->filled('date_from')) $query->whereDate('created_at', '>=', $request->date_from);
+                    if ($request->filled('date_to')) $query->whereDate('created_at', '<=', $request->date_to);
                     break;
-                
                 case 'closing_wise':
                     $query->whereDate('created_at', '>=', now()->subDays(30));
-                    break;
-                
-                case 'all':
-                default:
                     break;
             }
 
             $transactions = $query->orderBy('created_at', 'desc')->get();
-
             $totalCredit = $transactions->where('type', 'credit')->sum('amount');
             $totalDebit = $transactions->where('type', 'debit')->sum('amount');
 
             return response()->json([
                 'success' => true,
                 'data' => $transactions,
-                'totals' => [
-                    'credit' => $totalCredit,
-                    'debit' => $totalDebit,
-                ]
+                'totals' => ['credit' => $totalCredit, 'debit' => $totalDebit],
             ]);
         } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Failed to fetch account summary',
-                'error' => $e->getMessage()
-            ], 500);
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
         }
     }
-        /**
-     * Get Downline Rank
-     */
+
     public function getDownlineRank(Request $request)
     {
+        $request->validate(['user_id' => 'required|exists:mlm_users,id']);
+
         try {
-            // This would typically query a downline_ranks table
-            // For now, returning empty array
+            $progress = $this->rankService->getRankProgress($request->user_id);
+
+            $userRanks = UserRank::where('mlm_user_id', $request->user_id)
+                ->with('rank')
+                ->orderBy('achieved_at', 'desc')
+                ->get();
+
             return response()->json([
                 'success' => true,
-                'data' => [],
-                'message' => 'Downline rank fetched successfully'
+                'data' => [
+                    'current_rank_progress' => $progress,
+                    'rank_history' => $userRanks,
+                ],
             ]);
         } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Failed to fetch downline rank',
-                'error' => $e->getMessage()
-            ], 500);
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
         }
     }
 
-    /**
-     * Get Weekly Payout
-     */
     public function getWeeklyPayout(Request $request)
     {
+        $request->validate(['user_id' => 'required|exists:mlm_users,id']);
+
         try {
-            // This would query payout tables
+            $payoutSummary = $this->payoutService->getUserPayoutSummary($request->user_id);
+
+            $payoutTransactions = PayoutTransaction::where('mlm_user_id', $request->user_id)
+                ->orderBy('created_at', 'desc')
+                ->get();
+
             return response()->json([
                 'success' => true,
-                'data' => [],
-                'message' => 'Weekly payout fetched successfully'
+                'data' => [
+                    'summary' => $payoutSummary,
+                    'transactions' => $payoutTransactions,
+                ],
             ]);
         } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Failed to fetch weekly payout',
-                'error' => $e->getMessage()
-            ], 500);
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
         }
     }
 
-    /**
-     * Get Retreat Tours
-     */
+    public function getAwardsRewards(Request $request)
+    {
+        $request->validate(['user_id' => 'required|exists:mlm_users,id']);
+
+        try {
+            $userRewards = $this->rewardTourService->getUserRewards($request->user_id);
+            $qualifiedRewards = $this->rewardTourService->getQualifiedRewards($request->user_id);
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'claimed_rewards' => $userRewards,
+                    'qualified_rewards' => $qualifiedRewards,
+                ],
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+        }
+    }
+
     public function getRetreatTours(Request $request)
     {
+        $request->validate(['user_id' => 'required|exists:mlm_users,id']);
+
         try {
-            // This would query retreat_tours table
+            $qualified = $this->rewardTourService->getQualifiedRewards($request->user_id);
+            $claimed = $this->rewardTourService->getUserRewards($request->user_id);
+
+            $payoutBalance = PayoutBalance::where('mlm_user_id', $request->user_id)->first();
+
             return response()->json([
                 'success' => true,
-                'data' => [],
-                'message' => 'Retreat tours fetched successfully'
+                'data' => [
+                    'qualified_rewards' => $qualified,
+                    'claimed_rewards' => $claimed,
+                    'current_left_cc' => $payoutBalance?->left_cc ?? 0,
+                    'current_right_cc' => $payoutBalance?->right_cc ?? 0,
+                ],
             ]);
         } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Failed to fetch retreat tours',
-                'error' => $e->getMessage()
-            ], 500);
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
         }
     }
-        /**
-     * Get Order History
-     */
-/**
- * Get Order History
- */
-public function getOrderHistory(Request $request)
-{
-    try {
-        // Simple query without filters first
-        $orders = \App\Models\Order::where('user_id', $request->user_id)
-            ->orderBy('created_at', 'desc')
-            ->get();
-        
-        return response()->json([
-            'success' => true,
-            'data' => $orders, // Raw data bhej rahe hain
-            'count' => $orders->count(),
-            'message' => 'Order history fetched successfully'
-        ]);
-    } catch (\Exception $e) {
-        return response()->json([
-            'success' => false,
-            'message' => 'Failed: ' . $e->getMessage(),
-            'error' => $e->getMessage()
-        ], 500);
-    }
-}
 
-    /**
-     * Get By Hand Delivery
-     */
+    public function getCashBonusRequests(Request $request)
+    {
+        $request->validate(['user_id' => 'required|exists:mlm_users,id']);
+
+        try {
+            $query = \App\Models\CashBonusRequest::where('user_id', $request->user_id);
+            if ($request->filled('type') && $request->type !== 'all') {
+                $query->where('status', $request->type);
+            }
+            $data = $query->orderBy('created_at', 'desc')->get();
+
+            return response()->json(['success' => true, 'data' => $data]);
+        } catch (\Exception $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    public function getClaimCashRequests(Request $request)
+    {
+        $request->validate(['user_id' => 'required|exists:mlm_users,id']);
+
+        try {
+            $query = \App\Models\ClaimCashRequest::where('user_id', $request->user_id);
+            if ($request->filled('date_from')) $query->whereDate('created_at', '>=', $request->date_from);
+            if ($request->filled('date_to')) $query->whereDate('created_at', '<=', $request->date_to);
+            $data = $query->orderBy('created_at', 'desc')->get();
+
+            return response()->json(['success' => true, 'data' => $data]);
+        } catch (\Exception $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    public function getCashBonusHistory(Request $request)
+    {
+        $request->validate(['user_id' => 'required|exists:mlm_users,id']);
+
+        try {
+            $query = \App\Models\CashBonusHistory::where('user_id', $request->user_id);
+            if ($request->filled('date_from')) $query->whereDate('created_at', '>=', $request->date_from);
+            if ($request->filled('date_to')) $query->whereDate('created_at', '<=', $request->date_to);
+            $data = $query->orderBy('created_at', 'desc')->get();
+
+            return response()->json(['success' => true, 'data' => $data]);
+        } catch (\Exception $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    public function getOrderHistory(Request $request)
+    {
+        $request->validate(['user_id' => 'required|exists:mlm_users,id']);
+
+        try {
+            $orders = \App\Models\Order::where('user_id', $request->user_id)
+                ->with(['items.product', 'invoice'])
+                ->orderBy('created_at', 'desc')
+                ->get();
+
+            return response()->json(['success' => true, 'data' => $orders, 'count' => $orders->count()]);
+        } catch (\Exception $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+        }
+    }
+
     public function getByHandDelivery(Request $request)
     {
-        try {
-            return response()->json([
-                'success' => true,
-                'data' => [],
-                'message' => 'By hand delivery fetched successfully'
-            ]);
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Failed to fetch by hand delivery',
-                'error' => $e->getMessage()
-            ], 500);
-        }
+        return response()->json(['success' => true, 'data' => []]);
     }
 
-    /**
-     * Get Courier Delivery
-     */
     public function getCourierDelivery(Request $request)
     {
-        try {
-            return response()->json([
-                'success' => true,
-                'data' => [],
-                'message' => 'Courier delivery fetched successfully'
-            ]);
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Failed to fetch courier delivery',
-                'error' => $e->getMessage()
-            ], 500);
-        }
+        return response()->json(['success' => true, 'data' => []]);
     }
 
-    /**
-     * Get By Hand Award
-     */
     public function getByHandAward(Request $request)
     {
-        try {
-            return response()->json([
-                'success' => true,
-                'data' => [],
-                'message' => 'By hand award fetched successfully'
-            ]);
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Failed to fetch by hand award',
-                'error' => $e->getMessage()
-            ], 500);
-        }
+        return response()->json(['success' => true, 'data' => []]);
     }
 
-    /**
-     * Get By Courier Award
-     */
     public function getByCourierAward(Request $request)
     {
-        try {
-            return response()->json([
-                'success' => true,
-                'data' => [],
-                'message' => 'By courier award fetched successfully'
-            ]);
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Failed to fetch by courier award',
-                'error' => $e->getMessage()
-            ], 500);
-        }
+        return response()->json(['success' => true, 'data' => []]);
     }
 
-    /**
-     * Get Other Products
-     */
     public function getOtherProducts(Request $request)
     {
-        try {
-            return response()->json([
-                'success' => true,
-                'data' => [],
-                'message' => 'Other products fetched successfully'
-            ]);
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Failed to fetch other products',
-                'error' => $e->getMessage()
-            ], 500);
-        }
+        return response()->json(['success' => true, 'data' => []]);
     }
 }
