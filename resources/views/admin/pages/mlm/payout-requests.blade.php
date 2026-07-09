@@ -38,6 +38,7 @@
                                     <th>Username</th>
                                     <th>Requested Amount</th>
                                     <th>Pyment Mode</th>
+                                    <th>Type</th>
                                     <th>Request Date</th>
                                     <th>Status</th>
                                     <th>Actions</th>
@@ -163,6 +164,12 @@
                         name: 'mode_of_payment'
                     },
                     {
+                        data: 'type',
+                        name: 'type',
+                        orderable: false,
+                        searchable: false
+                    },
+                    {
                         data: 'request_date',
                         name: 'created_at'
                     },
@@ -206,6 +213,22 @@
                         $('input[name="status"][value="' + response.status + '"]').prop('checked', true);
                         $('#remarks').val(response.remark);
                         $('.update-payout-request').attr('data-id', requestId);
+
+                        var amount = parseFloat(response.amount) || 0;
+                        var chargeRate = {{ \App\Models\CCSetting::getWithdrawalChargePercent() }};
+                        var charge = (amount * chargeRate / 100).toFixed(2);
+                        var net = (amount - parseFloat(charge)).toFixed(2);
+
+                        $('#chargeInfo').remove();
+                        if (response.payment_mode === 'Withdrawal' && chargeRate > 0) {
+                            var infoHtml = '<div id="chargeInfo" class="alert alert-info mt-2">'
+                                + '<strong>Charge Breakdown:</strong><br>'
+                                + 'Requested: ₹' + amount.toFixed(2) + '<br>'
+                                + 'Charge (' + chargeRate + '%): <span class="text-danger">-₹' + charge + '</span><br>'
+                                + '<strong>Net Payable: ₹' + net + '</strong>'
+                                + '</div>';
+                            $('#amount').closest('.col-md-6').append(infoHtml);
+                        }
 
                         var ubd = response.user_bank_detail;
                         var ubdHtml = '';

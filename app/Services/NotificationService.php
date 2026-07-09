@@ -71,6 +71,18 @@ class NotificationService
             "Your withdrawal request has been {$status}. {$remarks}");
     }
 
+    public function createSponsorNotification(int $sponsorId, string $newUserName): void
+    {
+        $this->create($sponsorId, 'registration', 'New Team Member',
+            "{$newUserName} has joined your team.");
+    }
+
+    public function createActivationNotification(int $sponsorId, string $userName): void
+    {
+        $this->create($sponsorId, 'registration', 'Team Member Activated',
+            "{$userName} has activated their account.");
+    }
+
     public function createTicketNotification(int $userId, string $ticketNo, string $update): void
     {
         $this->create($userId, 'ticket', "Ticket #{$ticketNo} Updated",

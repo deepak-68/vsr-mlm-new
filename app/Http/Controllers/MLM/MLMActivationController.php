@@ -3,7 +3,10 @@ namespace App\Http\Controllers\MLM;
 
 use App\Http\Controllers\Controller;
 use App\Mail\MlmActivationMail;
+use App\Mail\SponsorActivationEmail;
 use App\Models\MlmUser;
+use App\Services\MailNotificationService;
+use App\Services\NotificationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
@@ -54,6 +57,23 @@ class MLMActivationController extends Controller
             'verification_token' => null,
             'verification_expires' => null,
         ]);
+
+        // Notify sponsor about activation
+        if ($user->sponsor_id) {
+            $sponsor = $user->sponsor;
+            try {
+                app(NotificationService::class)->createActivationNotification($user->sponsor_id, $user->user_name);
+            } catch (\Throwable $e) {
+                Log::warning('Activation sponsor notification failed: ' . $e->getMessage());
+            }
+            try {
+                if ($sponsor) {
+                    app(MailNotificationService::class)->sendSponsorActivation($sponsor, $user);
+                }
+            } catch (\Throwable $e) {
+                Log::warning('Activation sponsor email failed: ' . $e->getMessage());
+            }
+        }
 
         return view('admin.pages.mlm.activation-success', [
             'userName' => $user->user_name,

@@ -18,17 +18,20 @@ class MLMPayoutController extends Controller
 {
     public function dashboard(Request $request)
     {
-        $config = \App\Models\PayoutConfig::first();
-        
-        // ✅ Fallback if no config exists in DB
-        if (!$config) {
-            $config = new \App\Models\PayoutConfig([
-                'products_for_payout' => 40,
-                'threshold_cc' => 800,
-                'cc_to_currency_rate' => 60,
-            ]);
-        }
-        
+        $pendingCount = FundRequest::where('status', 'pending')->count();
+        $approvedCount = FundRequest::where('status', 'approved')->count();
+        $rejectedCount = FundRequest::where('status', 'rejected')->count();
+        $totalApprovedAmount = FundRequest::where('status', 'approved')->sum('amount');
+        $totalPendingAmount = FundRequest::where('status', 'pending')->sum('amount');
+        $totalPaidViaTransfer = FundTransfer::where('sender_id', 1)->sum('amount');
+        $pendingRequests = FundRequest::with(['user', 'userBankDetail'])
+            ->where('status', 'pending')
+            ->orderBy('created_at', 'desc')
+            ->take(10)
+            ->get();
+
+        $ccRate = \App\Models\CCSetting::getActiveRate();
+
         $usersWithPayouts = MlmUser::with(['payoutBalance', 'sponsor'])
             ->where('is_deleted', false)
             ->whereHas('payoutBalance', fn($qb) => 
@@ -39,7 +42,12 @@ class MLMPayoutController extends Controller
             ->orderBy('created_at', 'desc')
             ->paginate(20);
         
-        return view('admin.pages.mlm.payout-dashboard', compact('config', 'usersWithPayouts'));
+        return view('admin.pages.mlm.payout-dashboard', compact(
+            'ccRate', 'usersWithPayouts',
+            'pendingCount', 'approvedCount', 'rejectedCount',
+            'totalApprovedAmount', 'totalPendingAmount', 'totalPaidViaTransfer',
+            'pendingRequests'
+        ));
     }
 
     public function payoutRequest(Request $request)
@@ -72,6 +80,13 @@ class MLMPayoutController extends Controller
 
                 ->addColumn('requested_amount', function ($row) {
                     return '₹' . number_format($row->amount, 2);
+                })
+
+                ->addColumn('type', function ($row) {
+                    $isWithdrawal = is_null($row->bank_detail_id) || $row->payment_mode === 'Withdrawal';
+                    return $isWithdrawal
+                        ? '<span class="badge bg-info text-white">Withdrawal</span>'
+                        : '<span class="badge bg-secondary">Deposit</span>';
                 })
 
                 ->addColumn('payment_mode', function ($row) {
@@ -115,7 +130,7 @@ class MLMPayoutController extends Controller
                     ';
                 })
 
-                ->rawColumns(['status', 'actions'])
+                ->rawColumns(['type', 'status', 'actions'])
                 ->make(true);
         }
 
@@ -131,7 +146,7 @@ class MLMPayoutController extends Controller
     public function details($userId)
     {
         $user = MlmUser::with('payoutBalance')->findOrFail($userId);
-        $summary = (new PayoutService())->getUserPayoutSummary($user->id);
+        $summary = app(PayoutService::class)->getUserPayoutSummary($user->id);
         $txns = PayoutTransaction::where('mlm_user_id', $user->id)
             ->orderBy('created_at', 'desc')->take(10)->get();
         
@@ -151,7 +166,10 @@ class MLMPayoutController extends Controller
             $user = MlmUser::findOrFail($v['user_id']);
             $balance = PayoutBalance::where('mlm_user_id', $user->id)->firstOrFail();
             
-            if (!$balance->is_payout_eligible) throw new \Exception('Not eligible. Complete 40 products first.');
+            $totalProducts = \App\Models\OrderItem::whereHas('order', fn($q) =>
+                $q->where('user_id', $user->id)->where('status', 'COMPLETED')
+            )->sum('quantity');
+            if ($totalProducts < 2) throw new \Exception('Not eligible. Purchase at least 2 products first.');
             if ($balance->available_balance < $v['amount']) throw new \Exception('Insufficient balance.');
 
             PayoutTransaction::create([
@@ -257,27 +275,94 @@ class MLMPayoutController extends Controller
         $fundRequest->update(['status' => $v['status']]);
 
         if ($v['status'] === 'approved') {
-            // FundSummary::create([
-            //     'user_id' => $fundRequest->user_id,
-            //     'username' => $fundRequest->user->user_name,
-            //     'transaction_date' => now(),
-            //     'type' => 'ADMIN CREDIT',
-            //     'particular' => 'Fund Request Approved',
-            //     'remark' => $request->remarks ?? 'Fund request approved by admin',
-            //     'credit' => $fundRequest->amount,
-            //     'debit' => 0,
-            // ]);
+            $isWithdrawal = is_null($fundRequest->bank_detail_id) || $fundRequest->payment_mode === 'Withdrawal';
 
-            FundTransfer::create([
-                'sender_id'           => 1, // Admin ID
-                'receiver_id'         => $fundRequest->user_id,
-                'sender_username'     => 'ADMIN',
-                'receiver_username'   => $fundRequest->user->user_name,
-                'amount'              => $fundRequest->amount,
-                'remark'              => $request->remarks,
-                'transaction_password'=> '1234567890',
-                'status'              => 'completed',
-            ]);
+            if ($isWithdrawal) {
+                DB::beginTransaction();
+                try {
+                    $amount = $fundRequest->amount;
+                    $chargePercent = \App\Models\CCSetting::getWithdrawalChargePercent();
+                    $chargeAmount = round($amount * $chargePercent / 100, 2);
+                    $netAmount = round($amount - $chargeAmount, 2);
+
+                    $wallet = \App\Models\WalletBalance::firstOrCreate(
+                        ['user_id' => $fundRequest->user_id, 'wallet_id' => 1],
+                        ['balance' => 0, 'total_earned' => 0]
+                    );
+                    $wallet->decrement('balance', $netAmount);
+                    $wallet->increment('total_withdrawn', $amount);
+
+                    $wallet->refresh();
+
+                    $txn = new \App\Models\WalletTransaction();
+                    $txn->wallet_id = 1;
+                    $txn->user_id = $fundRequest->user_id;
+                    $txn->type = 'debit';
+                    $txn->amount = $netAmount;
+                    $txn->balance_after = $wallet->balance;
+                    $txn->reference_type = 'withdrawal';
+                    $txn->reference_id = $fundRequest->id;
+                    $txn->status = 'completed';
+                    $txn->description = "Withdrawal approved: ₹{$amount}, charge: ₹{$chargeAmount}, net paid: ₹{$netAmount}";
+                    $txn->save();
+
+                    FundSummary::create([
+                        'user_id' => $fundRequest->user_id,
+                        'username' => $fundRequest->user->user_name,
+                        'transaction_date' => now(),
+                        'type' => 'ADMIN DEBIT',
+                        'particular' => 'Withdrawal Approved',
+                        'remark' => $request->remarks ?? "Withdrawal request approved by admin (charge: {$chargePercent}%)",
+                        'credit' => $amount,
+                        'debit' => $chargeAmount,
+                    ]);
+
+                    FundTransfer::create([
+                        'sender_id'           => 1,
+                        'receiver_id'         => $fundRequest->user_id,
+                        'sender_username'     => 'ADMIN',
+                        'receiver_username'   => $fundRequest->user->user_name,
+                        'amount'              => $netAmount,
+                        'remark'              => $request->remarks,
+                        'transaction_password'=> '1234567890',
+                        'status'              => 'completed',
+                    ]);
+
+                    DB::commit();
+                } catch (\Exception $e) {
+                    DB::rollBack();
+                    Log::error('Withdrawal approval failed', [
+                        'fund_request_id' => $fundRequest->id,
+                        'error' => $e->getMessage(),
+                    ]);
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Failed to process withdrawal: ' . $e->getMessage(),
+                    ], 500);
+                }
+            } else {
+                FundSummary::create([
+                    'user_id' => $fundRequest->user_id,
+                    'username' => $fundRequest->user->user_name,
+                    'transaction_date' => now(),
+                    'type' => 'ADMIN CREDIT',
+                    'particular' => 'Fund Request Approved',
+                    'remark' => $request->remarks ?? 'Fund request approved by admin',
+                    'credit' => $fundRequest->amount,
+                    'debit' => 0,
+                ]);
+
+                FundTransfer::create([
+                    'sender_id'           => 1,
+                    'receiver_id'         => $fundRequest->user_id,
+                    'sender_username'     => 'ADMIN',
+                    'receiver_username'   => $fundRequest->user->user_name,
+                    'amount'              => $fundRequest->amount,
+                    'remark'              => $request->remarks,
+                    'transaction_password'=> '1234567890',
+                    'status'              => 'completed',
+                ]);
+            }
         }
 
         return response()->json([

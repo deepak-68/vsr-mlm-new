@@ -36,23 +36,13 @@ class MLMOrderController extends Controller
             'payment_mode' => 'required|in:cash,online,upi',
             'items' => 'required|array|min:1',
             'items.*.product_id' => 'required|exists:products,id',
-            'items.*.quantity' => 'required|integer|min:1',
+            'items.*.quantity' => 'required|integer|min:2',
         ]);
 
         DB::beginTransaction();
         try {
             $user = MlmUser::findOrFail($validated['user_id']);
             
-            // 🔒 Lifetime limit check
-            $lifetimePurchased = OrderItem::whereHas('order', fn($q) => 
-                $q->where('user_id', $user->id)->where('status', 'COMPLETED')
-            )->sum('quantity');
-            
-            $totalItemsInCart = collect($validated['items'])->sum('quantity');
-            if (($lifetimePurchased + $totalItemsInCart) > 40) {
-                throw new \Exception("❌ Lifetime limit exceeded. Maximum 40 products allowed.");
-            }
-
             // 🎯 Calculate totals
             $ccRate = \App\Models\CCSetting::getActiveRate();
             $totalAmount = 0; $totalCC = 0; $totalQuantity = 0;

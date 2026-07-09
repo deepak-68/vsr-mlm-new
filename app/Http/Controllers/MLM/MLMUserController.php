@@ -10,7 +10,6 @@ use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\PayoutBalance;
 use App\Models\Kyc;
-use App\Models\PayoutConfig;
 use App\Models\Product;
 use App\Models\SpillingPreference;
 use App\Services\PayoutService;
@@ -473,7 +472,7 @@ class MLMUserController extends Controller
             'activeUsers', 'newUsersToday', 'totalPayout', 'directSellers',
             'eligibleCount', 'leftNodes', 'rightNodes', 'totalNodes',
             'customerCount', 'inactiveCount', 'totalProducts', 'lowStock',
-            'outOfStock', 'inventoryPercentage', 'leftTeamVolume', 'rightTeamVolume',
+            'outOfStock', 'inStock', 'inventoryPercentage', 'leftTeamVolume', 'rightTeamVolume',
             'leftCarryVolume', 'rightCarryVolume', 'totalBV',
             'pendingKyc', 'approvedKyc', 'rejectedKyc',
             'orderTotal', 'orderPending', 'orderCompleted', 'orderRevenue', 'orderToday'

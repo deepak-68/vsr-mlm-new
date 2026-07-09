@@ -15,7 +15,7 @@ class BinaryMatchingService
 {
     const CC_PER_PAIR = 360;
     const INCOME_PER_PAIR = 100;
-    const WALLET_ID = 2;
+    const WALLET_ID = 1;
 
     public function __construct(
         private readonly IncomeLogService $incomeLogService,

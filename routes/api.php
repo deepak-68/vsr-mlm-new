@@ -202,6 +202,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // User Bank Details
     Route::get('/user-bank-detail', [UserBankDetailApiController::class, 'show']);
     Route::post('/user-bank-detail', [UserBankDetailApiController::class, 'store']);
+    Route::delete('/user-bank-detail/{userId}', [UserBankDetailApiController::class, 'destroy']);
 
     // Notifications
     Route::get('notifications', [NotificationController::class, 'index']);

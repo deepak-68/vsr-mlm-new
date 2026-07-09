@@ -69,11 +69,14 @@ class WalletController extends Controller
         $payoutCC = PayoutTransaction::where('mlm_user_id', $userId)
             ->sum('cc_amount');
 
-        // Total CC from fund wallet balance (wallet_id = 1)
+        // Wallet balance from wallet_id = 1 (Commission Wallet)
         $walletBalance = WalletBalance::where('user_id', $userId)->where('wallet_id', 1)->first();
         $fundWalletBalance = $walletBalance?->balance ?? 0;
+        $totalWithdrawn = $walletBalance?->total_withdrawn ?? 0;
 
-        $totalCC = $directIncomeCC + $payoutCC;
+        // Total CC from all income logs (lifetime)
+        $allIncomeCC = IncomeLog::where('user_id', $userId)->sum('cc_amount');
+        $totalCC = $allIncomeCC + $payoutCC;
 
         // Get conversion rate
         $conversionRate = CCSetting::getActiveRate();
@@ -88,6 +91,7 @@ class WalletController extends Controller
                 'direct_cc' => $directIncomeCC,
                 'payout_cc' => $payoutCC,
                 'fund_wallet_balance' => $fundWalletBalance,
+                'total_withdrawn' => $totalWithdrawn,
             ],
         ]);
     }

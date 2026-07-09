@@ -109,6 +109,12 @@ class KycController extends Controller
 
         $kyc->save();
 
+        // Update PAN and Aadhaar in user details table
+        $userDetail = \App\Models\MlmUserDetail::firstOrNew(['user_id' => $userId]);
+        $userDetail->pan_number = $request->pan_number;
+        $userDetail->aadhaar_number = $request->aadhaar_number;
+        $userDetail->save();
+
         $kyc->load('user');
 
         return response()->json([
@@ -134,17 +140,46 @@ class KycController extends Controller
     public function kycStatus(Request $request)
     {
         try {
-        $userId = MlmUser::where('id', $request->user_id)->value('id');
-            $status = Kyc::with('user')->where('user_id', $userId)
-                ->select('status', 'id', 'user_id')
-                ->latest()
-                ->first();
+            $userId = MlmUser::where('id', $request->user_id)->value('id');
 
-            $data = $status ? [
-                'id' => $status->id,
-                'status' => $status->status,
-                'user_id' => $status->user_id,
+            // Fetch KYC record with all fields
+            $kyc = Kyc::where('user_id', $userId)->latest()->first();
+
+            // Fetch PAN from user details for autofill
+            $userDetail = \App\Models\MlmUserDetail::where('user_id', $userId)->first();
+
+            $data = $kyc ? [
+                'id' => $kyc->id,
+                'status' => $kyc->status,
+                'user_id' => $kyc->user_id,
+                'pan_number' => $kyc->pan_number,
+                'aadhaar_number' => $kyc->aadhaar_number,
+                'pan_image' => $kyc->pan_image ? asset($kyc->pan_image) : null,
+                'aadhaar_front_image' => $kyc->aadhaar_front_image ? asset($kyc->aadhaar_front_image) : null,
+                'aadhaar_back_image' => $kyc->aadhaar_back_image ? asset($kyc->aadhaar_back_image) : null,
+                'bank_document_image' => $kyc->bank_document_image ? asset($kyc->bank_document_image) : null,
+                'reject_reason' => $kyc->reject_reason,
+                'created_at' => $kyc->created_at,
+                'updated_at' => $kyc->updated_at,
             ] : null;
+
+            // If no KYC record, provide PAN from registration for autofill
+            if (!$data && $userDetail) {
+                $data = [
+                    'id' => null,
+                    'status' => null,
+                    'user_id' => $userId,
+                    'pan_number' => $userDetail->pan_number,
+                    'aadhaar_number' => '',
+                    'pan_image' => null,
+                    'aadhaar_front_image' => null,
+                    'aadhaar_back_image' => null,
+                    'bank_document_image' => null,
+                    'reject_reason' => null,
+                    'created_at' => null,
+                    'updated_at' => null,
+                ];
+            }
 
             return response()->json([
                 'success' => true,
@@ -157,7 +192,7 @@ class KycController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Something went wrong while fetching KYC status.',
-                'error' => $e->getMessage() 
+                'error' => $e->getMessage()
             ], 500);
         }
     }

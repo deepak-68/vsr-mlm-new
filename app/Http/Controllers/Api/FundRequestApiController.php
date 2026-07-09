@@ -73,16 +73,32 @@ class FundRequestApiController extends Controller
 
             // If approved, add to user's fund summary
             if ($validated['status'] === 'approved') {
-                FundSummary::create([
-                    'user_id' => $fundRequest->user_id,
-                    'username' => $fundRequest->username,
-                    'transaction_date' => now(),
-                    'type' => 'ADMIN CREDIT',
-                    'particular' => 'Fund Request Approved',
-                    'remark' => $validated['admin_remark'] ?? 'Fund request approved by admin',
-                    'credit' => $fundRequest->amount,
-                    'debit' => 0,
-                ]);
+                $isWithdrawal = is_null($fundRequest->bank_detail_id) || $fundRequest->payment_mode === 'Withdrawal';
+
+                if ($isWithdrawal) {
+                    // Withdrawal approval = debit from user
+                    FundSummary::create([
+                        'user_id' => $fundRequest->user_id,
+                        'username' => $fundRequest->username,
+                        'transaction_date' => now(),
+                        'type' => 'ADMIN DEBIT',
+                        'particular' => 'Withdrawal Approved',
+                        'remark' => $validated['admin_remark'] ?? 'Withdrawal request approved by admin',
+                        'credit' => 0,
+                        'debit' => $fundRequest->amount,
+                    ]);
+                } else {
+                    FundSummary::create([
+                        'user_id' => $fundRequest->user_id,
+                        'username' => $fundRequest->username,
+                        'transaction_date' => now(),
+                        'type' => 'ADMIN CREDIT',
+                        'particular' => 'Fund Request Approved',
+                        'remark' => $validated['admin_remark'] ?? 'Fund request approved by admin',
+                        'credit' => $fundRequest->amount,
+                        'debit' => 0,
+                    ]);
+                }
             }
 
             // In-app notification + email for withdrawal status
@@ -142,70 +158,103 @@ class FundRequestApiController extends Controller
      */
     public function submit(Request $request)
     {
-        $validated = $request->validate([
-            'user_id' => 'required',
-            'username' => 'required|string',
-            'bank_detail_id' => 'required|exists:admin_bank_details,id',
-            'payment_mode' => 'required|string',
+        $type = $request->input('type', 'deposit');
+
+        Log::info('FundRequestApiController@submit called', [
+            'type' => $type,
+            'all_input' => $request->except(['hash_code']),
+            'has_file' => $request->hasFile('hash_code'),
+        ]);
+
+        $rules = [
+            'user_id' => 'required|exists:mlm_users,id',
+            // 'username' => 'required|string',
             'amount' => 'required|numeric|min:1',
             'remark' => 'nullable|string|max:500',
             'mode_of_payment' => 'required|string',
-            'deposit_bank' => 'required|string',
-            'transaction_no' => 'required|string',
-            'deposit_date' => 'required|date',
-            'hash_code' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
-        ]);
+        ];
+
+        if ($type === 'withdrawal') {
+            $rules['user_bank_id'] = 'required|exists:user_bank_details,id';
+        } else {
+            $rules['bank_detail_id'] = 'required|exists:admin_bank_details,id';
+            $rules['payment_mode'] = 'required|string';
+            $rules['deposit_bank'] = 'required|string';
+            $rules['transaction_no'] = 'required|string';
+            $rules['deposit_date'] = 'required|date';
+            $rules['hash_code'] = 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048';
+        }
+
+        $validated = $request->validate($rules);
+
+        Log::info('FundRequestApiController validation passed', ['validated' => $validated]);
 
         try {
             $userId = MlmUser::where('id', $validated['user_id'])->value('id');
 
-            // Handle image upload
-            $imagePath = null;
-            if ($request->hasFile('hash_code')) {
-                $imagePath = $request->file('hash_code')->store('fund-requests', 'public');
+            Log::info('FundRequestApiController resolved userId', ['user_id' => $userId]);
+
+            if ($type === 'withdrawal') {
+                $fundRequest = FundRequest::create([
+                    'user_id' => $userId,
+                    'username' => $request->user()->user_name,
+                    'user_bank_detail_id' => $validated['user_bank_id'],
+                    'payment_mode' => 'Withdrawal',
+                    'amount' => $validated['amount'],
+                    'remark' => $validated['remark'] ?? 'Withdrawal request',
+                    'mode_of_payment' => $validated['mode_of_payment'],
+                    'deposit_bank' => '',
+                    'transaction_no' => '',
+                    'deposit_date' => now(),
+                    'hash_code_image' => null,
+                    'status' => 'pending',
+                ]);
+            } else {
+                $imagePath = null;
+                if ($request->hasFile('hash_code')) {
+                    $imagePath = $request->file('hash_code')->store('fund-requests', 'public');
+                }
+
+                $userBankDetail = \App\Models\UserBankDetail::where('user_id', $userId)->first();
+
+                $fundRequest = FundRequest::create([
+                    'user_id' => $userId,
+                    'username' => $validated['username'],
+                    'bank_detail_id' => $validated['bank_detail_id'],
+                    'user_bank_detail_id' => $userBankDetail?->id,
+                    'payment_mode' => $validated['payment_mode'],
+                    'amount' => $validated['amount'],
+                    'remark' => $validated['remark'] ?? null,
+                    'mode_of_payment' => $validated['mode_of_payment'],
+                    'deposit_bank' => $validated['deposit_bank'],
+                    'transaction_no' => $validated['transaction_no'],
+                    'deposit_date' => $validated['deposit_date'],
+                    'hash_code_image' => $imagePath,
+                    'status' => 'pending',
+                ]);
             }
 
-            $userBankDetail = \App\Models\UserBankDetail::where('user_id', $userId)->first();
-
-            $fundRequest = FundRequest::create([
-                'user_id' => $userId,
-                'username' => $validated['username'],
-                'bank_detail_id' => $validated['bank_detail_id'],
-                'user_bank_detail_id' => $userBankDetail?->id,
-                'payment_mode' => $validated['payment_mode'],
-                'amount' => $validated['amount'],
-                'remark' => $validated['remark'] ?? null,
-                'mode_of_payment' => $validated['mode_of_payment'],
-                'deposit_bank' => $validated['deposit_bank'],
-                'transaction_no' => $validated['transaction_no'],
-                'deposit_date' => $validated['deposit_date'],
-                'hash_code_image' => $imagePath,
-                'status' => 'pending',
+            Log::info('FundRequestApiController created fund request', [
+                'id' => $fundRequest->id,
+                'type' => $type
             ]);
 
             $fundRequest->load('user');
 
+            $responseData = $fundRequest->toArray();
+            $responseData['type'] = $type;
+
             return response()->json([
                 'success' => true,
-                'data' => [
-                    'id' => $fundRequest->id,
-                    'username' => $fundRequest->username,
-                    'bank_detail_id' => $fundRequest->bank_detail_id,
-                    'payment_mode' => $fundRequest->payment_mode,
-                    'amount' => $fundRequest->amount,
-                    'remark' => $fundRequest->remark,
-                    'mode_of_payment' => $fundRequest->mode_of_payment,
-                    'deposit_bank' => $fundRequest->deposit_bank,
-                    'transaction_no' => $fundRequest->transaction_no,
-                    'deposit_date' => $fundRequest->deposit_date,
-                    'hash_code_image' => $fundRequest->hash_code_image,
-                    'status' => $fundRequest->status,
-                    'created_at' => $fundRequest->created_at,
-                    'updated_at' => $fundRequest->updated_at,
-                ],
-                'message' => 'Fund request submitted successfully'
+                'data' => $responseData,
+                'message' => $type === 'withdrawal' ? 'Withdrawal request submitted successfully' : 'Fund request submitted successfully'
             ], 201);
         } catch (\Exception $e) {
+            Log::error('FundRequestApiController submit failed', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to submit fund request',
@@ -213,7 +262,7 @@ class FundRequestApiController extends Controller
             ], 500);
         }
     }
-
+     
     public function withdrawalHistory(Request $request)
     {
         try {

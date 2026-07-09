@@ -35,9 +35,6 @@ class PayoutService
 
     public function getUserPayoutSummary($userId)
     {
-        $config = \App\Models\PayoutConfig::first();
-        $thresholdCC = $config ? $config->getThresholdCC() : 800;
-
         $personalCC = \App\Models\OrderItem::whereHas('order', fn($q) =>
             $q->where('user_id', $userId)->where('status', 'COMPLETED')
         )->sum('cc_points');
@@ -46,7 +43,6 @@ class PayoutService
             $q->where('user_id', $userId)->where('status', 'COMPLETED')
         )->sum('quantity');
 
-        $productsForPayout = $config ? $config->products_for_payout : 40;
         $balance = PayoutBalance::where('mlm_user_id', $userId)->first();
 
         return [
@@ -57,10 +53,8 @@ class PayoutService
             'locked_balance' => $balance ? $balance->locked_balance : 0,
             'total_earned' => $balance ? $balance->total_earned : 0,
             'total_matched_cc' => $balance ? $balance->total_matched_cc : 0,
-            'is_eligible' => $totalProducts >= $productsForPayout,
-            'threshold_cc' => $thresholdCC,
-            'progress_percent' => min(100, ($totalProducts / $productsForPayout) * 100),
-            'products_needed' => max(0, $productsForPayout - $totalProducts),
+            'is_eligible' => $totalProducts >= 2,
+            'products_needed' => max(0, 2 - $totalProducts),
         ];
     }
 }

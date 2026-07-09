@@ -10,6 +10,7 @@ use App\Models\Order;
 use App\Models\PayoutBalance;
 use App\Models\UserRank;
 use App\Models\WalletBalance;
+use App\Models\Kyc;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -71,14 +72,25 @@ class DashboardController extends Controller
         $repurchaseIncomeAmount = (clone $repLogs)->sum('currency_amount');
         $repurchaseIncomeLifetime = $repurchaseIncomeCC;
 
+        $rankLogs = \App\Models\IncomeLog::where('user_id', $userId)->where('income_type', 'rank');
+        $rankIncomeCC = (clone $rankLogs)->sum('cc_amount');
+        $rankIncomeAmount = (clone $rankLogs)->sum('currency_amount');
+        $rankIncomeLifetime = $rankIncomeCC;
+
         // Total across all income types
         $totalIncomeCC = $directIncomeCC + $matchingIncomeCC + $levelIncomeCC
-            + $repurchaseIncomeCC;
+            + $repurchaseIncomeCC + $rankIncomeCC;
+        $totalIncomeAmount = $directIncomeAmount + $matchingIncomeAmount + $levelIncomeAmount
+            + $repurchaseIncomeAmount + $rankIncomeAmount;
 
         // Current left/right CC (from payout balance)
         $payoutBalance = PayoutBalance::where('mlm_user_id', $userId)->first();
         $currentLeftCC = $payoutBalance?->left_cc ?? 0;
         $currentRightCC = $payoutBalance?->right_cc ?? 0;
+
+        // KYC Status
+        $kycRecord = Kyc::where('user_id', $userId)->latest()->first();
+        $kycStatus = $kycRecord?->status ?? 'not_submitted';
 
         // Order history (last 10)
         $orderHistory = Order::with(['items', 'invoice', 'purchasedForUser'])
@@ -127,9 +139,18 @@ class DashboardController extends Controller
                         'current_amount' => $repurchaseIncomeAmount,
                         'lifetime_total' => $repurchaseIncomeLifetime,
                     ],
+                    'rank_income' => [
+                        'label' => 'Rank Income',
+                        'current_cc' => $rankIncomeCC,
+                        'current_amount' => $rankIncomeAmount,
+                        'lifetime_total' => $rankIncomeLifetime,
+                    ],
                 ],
 
+                'kyc_status' => $kycStatus,
+
                 'total_income_cc' => $totalIncomeCC,
+                'total_income_amount' => $totalIncomeAmount,
             ]
         ]);
     }

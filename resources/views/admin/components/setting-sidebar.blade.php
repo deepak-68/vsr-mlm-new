@@ -8,6 +8,7 @@
                 <ul class="side-nav-setting mm-collapse" id="settingMenu">
                     <li><a href="{{ route('cc-settings.index') }}"><i class="flaticon-381-controls-3"></i> CC Points
                             Setting</a></li>
+                    <li><a href="{{ route('withdrawal-charge-settings.index') }}"><i class="flaticon-381-percentage"></i> Withdrawal Charge</a></li>
                     <li><a href="{{ route('general-setting') }}"><i class="flaticon-381-settings-2"></i> General
                             Setting</a></li>
                     <li><a href="{{ route('system-setting') }}"><i class="fa-brands fa-centos"></i> System

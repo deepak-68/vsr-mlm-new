@@ -29,6 +29,37 @@ class UserBankDetailApiController extends Controller
         }
     }
 
+    public function destroy($userId)
+    {
+        try {
+            $bankDetail = UserBankDetail::where('user_id', $userId)->first();
+
+            if (!$bankDetail) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No bank details found to delete',
+                ], 404);
+            }
+
+            if ($bankDetail->bank_attachment) {
+                \Illuminate\Support\Facades\Storage::disk('public')->delete($bankDetail->bank_attachment);
+            }
+
+            $bankDetail->delete();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Bank details deleted successfully',
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to delete bank details',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
     public function store(Request $request)
     {
         $validated = $request->validate([

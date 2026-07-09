@@ -286,6 +286,7 @@
                                     <p class="mb-0 text-muted fs-14">Total Products</p>
                                 </div>
                                 <div class="text-end">
+                                    <p class="mb-1 text-success fs-12"><i class="las la-check-circle me-1"></i>{{ $inStock ?? 0 }} In Stock</p>
                                     <p class="mb-1 text-warning fs-12"><i class="las la-exclamation-triangle me-1"></i>{{ $lowStock }} Low Stock</p>
                                     <p class="mb-0 text-danger fs-12"><i class="las la-times-circle me-1"></i>{{ $outOfStock }} Out of Stock</p>
                                 </div>

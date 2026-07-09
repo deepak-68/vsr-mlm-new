@@ -26,6 +26,7 @@ class OrderConfirmationService
         private readonly LevelIncomeService $levelIncomeService,
         private readonly RepurchaseIncomeService $repurchaseIncomeService,
         private readonly RankService $rankService,
+        private readonly RankIncomeService $rankIncomeService,
         private readonly RewardTourService $rewardTourService,
     ) {
         $this->pipeline = [
@@ -34,7 +35,8 @@ class OrderConfirmationService
             'direct_income'      => fn(Order $o) => $this->stepDirectIncome($o),
             'matching_income'    => fn(Order $o) => $this->stepMatchingIncome($o),
             'level_income'       => fn(Order $o) => $this->stepLevelIncome($o),
-            'repurchase_income'  => fn(Order $o) => $this->stepRepurchaseIncome($o),
+            // 'repurchase_income' => fn(Order $o) => $this->stepRepurchaseIncome($o), // HOLD - re-enable when ready
+            'rank_income'        => fn(Order $o) => $this->stepRankIncome($o),
             'rank_check'         => fn(Order $o) => $this->stepRankCheck($o),
             'invoice'            => fn(Order $o) => $this->stepInvoice($o),
             'notification'       => fn(Order $o) => $this->stepNotification($o),
@@ -176,26 +178,25 @@ class OrderConfirmationService
 
     private function stepRepurchaseIncome(Order $order): array
     {
-        $userId = $order->user_id;
+        // HOLD - re-enable when repurchase income is cleared
+        return ['is_repurchase' => false, 'reason' => 'HOLD'];
+    }
 
-        if (!$this->repurchaseIncomeService->isRepurchase($userId)) {
-            return ['is_repurchase' => false, 'reason' => 'First purchase'];
-        }
-
-        $ccPoints = (float) ($order->total_cc_points ?? 0);
-        $results = $this->repurchaseIncomeService->processRepurchaseIncome($order, $ccPoints);
+    private function stepRankIncome(Order $order): array
+    {
+        $results = $this->rankIncomeService->processRankIncome($order);
 
         return [
-            'is_repurchase' => true,
-            'commission_generated' => !empty($results),
+            'processed' => !empty($results),
             'details' => $results,
         ];
     }
 
     private function stepRankCheck(Order $order): array
     {
-        $userId = $order->user_id;
+        $upgraded = [];
 
+        $userId = $order->user_id;
         $userRank = $this->rankService->checkAndUpgradeRank($userId);
 
         if ($userRank) {
@@ -206,12 +207,51 @@ class OrderConfirmationService
 
             $this->rewardTourService->checkAndGenerateRewardIncome($userId, $userRank->rank_id);
 
-            $rankIncomeAmount = (float) ($userRank->rank?->reward?->value_cc ?? 0);
+            $user = MlmUser::find($userId);
+            if ($user) {
+                try {
+                    $this->mailService->sendRankAchieved($user, $userRank->rank->name ?? 'New Rank');
+                } catch (\Throwable $e) {
+                    Log::warning('Rank achievement email failed', ['user_id' => $userId, 'error' => $e->getMessage()]);
+                }
+            }
 
+            $upgraded[] = [
+                'user_id' => $userId,
+                'rank_name' => $userRank->rank->name ?? 'Unknown',
+            ];
+        }
+
+        // Also check rank for the CC recipient (sponsor)
+        $ccRecipient = $this->selfCCService->getCcRecipient($order);
+        if ($ccRecipient && $ccRecipient->id !== $userId) {
+            $sponsorRank = $this->rankService->checkAndUpgradeRank($ccRecipient->id);
+
+            if ($sponsorRank) {
+                $this->notificationService->createRankNotification(
+                    $ccRecipient->id,
+                    $sponsorRank->rank->name ?? 'New Rank'
+                );
+
+                $this->rewardTourService->checkAndGenerateRewardIncome($ccRecipient->id, $sponsorRank->rank_id);
+
+                try {
+                    $this->mailService->sendRankAchieved($ccRecipient, $sponsorRank->rank->name ?? 'New Rank');
+                } catch (\Throwable $e) {
+                    Log::warning('Rank achievement email failed for sponsor', ['user_id' => $ccRecipient->id, 'error' => $e->getMessage()]);
+                }
+
+                $upgraded[] = [
+                    'user_id' => $ccRecipient->id,
+                    'rank_name' => $sponsorRank->rank->name ?? 'Unknown',
+                ];
+            }
+        }
+
+        if (!empty($upgraded)) {
             return [
                 'rank_upgraded' => true,
-                'rank_name' => $userRank->rank->name ?? 'Unknown',
-                'rank_income_cc' => $rankIncomeAmount,
+                'upgrades' => $upgraded,
             ];
         }
 

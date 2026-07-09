@@ -50,12 +50,20 @@ class FundSummaryApiController extends Controller
             $totalCredit = $fundSummaries->sum('credit');
             $totalDebit = $fundSummaries->sum('debit');
 
+            // Categorize deductions
+            $deductionTypes = ['ADMIN DEBIT', 'Debit Transfer'];
+            $deductionTotal = $fundSummaries->whereIn('type', $deductionTypes)->sum('debit');
+            $purchaseTotal = $fundSummaries->where('type', 'Product Purchase')->sum('debit');
+
             return response()->json([
                 'success' => true,
                 'data' => $data,
                 'totals' => [
                     'credit' => $totalCredit,
                     'debit' => $totalDebit,
+                    'net' => $totalCredit - $totalDebit,
+                    'deductions' => $deductionTotal,
+                    'purchases' => $purchaseTotal,
                 ],
                 'message' => 'Fund summary fetched successfully'
             ]);

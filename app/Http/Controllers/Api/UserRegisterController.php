@@ -125,6 +125,13 @@ class UserRegisterController extends Controller
             Log::warning('Registration notification failed: ' . $e->getMessage());
         }
 
+        // Sponsor in-app notification
+        try {
+            app(NotificationService::class)->createSponsorNotification($sponsor->id, $user->user_name);
+        } catch (\Throwable $e) {
+            Log::warning('Sponsor notification failed: ' . $e->getMessage());
+        }
+
         // Sponsor notification email
         try {
             app(MailNotificationService::class)->sendSponsorNotification($sponsor, $user);

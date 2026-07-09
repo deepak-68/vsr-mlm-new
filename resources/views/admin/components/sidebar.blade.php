@@ -42,73 +42,12 @@
 
             <li><a class="has-arrow ai-icon" href="javascript:void()" aria-expanded="false">
                     <i class="flaticon-381-home"></i>
-                    <span class="nav-text">Financials</span>
+                    <span class="nav-text">Payouts</span>
                 </a>
                 <ul aria-expanded="false">
-
-                    <li>
-                        <a href="{{ route('wallets.financial-overview') }}">
-                           Financial Overview
-                        </a>
-                    </li>
-                    <li>
-                        <a href="{{ route('wallets.commission-wallet') }}">
-                          
-                            <span>Commission Wallet</span>
-                        </a>
-                    </li>
-                    <li>
-                        <a href="{{ route('wallets.purchase-wallet') }}">
-                          
-                            <span>Purchase Wallet</span>
-                        </a>
-                    </li>
-                   
-                    <li>
-                        <a href="{{ route('wallets.pending-earnings') }}">
-                          
-                            <span>Pending Earnings</span>
-                        </a>
-                    </li>
-                   
-                    <li>
-                        <a href="{{ route('wallets.bonus-history') }}">
-                          
-                            <span>Bonus History</span>
-                        </a>
-                    </li>
-                    <li>
-                        <a href="{{ route('wallets.cc-logs') }}">
-                          
-                            <span>CC Logs</span>
-                        </a>
-                    </li>
-                    <li>
-                        <a href="{{ route('wallets.pair-matching-logs') }}">
-                          
-                            <span>Pair Logs</span>
-                        </a>
-                    </li>
-                </ul>
-            </li>
-
-
-            <li><a class="has-arrow ai-icon" href="javascript:void()" aria-expanded="false">
-                    <i class="flaticon-381-home"></i>
-                    <span class="nav-text">Wallets & Payouts</span>
-                </a>
-                <ul aria-expanded="false">
-
                     <li>
                         <a href="{{ route('mlm-users.payout') }}">
-                          
                             <span>Payout Dashboard</span>
-                        </a>
-                    </li>
-                    <li>
-                        <a href="{{ route('wallets.index') }}">
-                          
-                            <span>Master Wallet</span>
                         </a>
                     </li>
                     <li>
@@ -273,6 +212,7 @@
                     <ul aria-expanded="false">
                         @can('manage-general-settings')
                             <li><a href="{{ route('cc-settings.index') }}">CC Points Settings</a></li>
+                            <li><a href="{{ route('withdrawal-charge-settings.index') }}">Withdrawal Charge</a></li>
                         @endcan
                         @can('manage-general-settings')
                             <li><a href="{{ route('general-setting') }}">General Settings</a></li>

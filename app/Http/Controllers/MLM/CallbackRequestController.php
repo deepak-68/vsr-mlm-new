@@ -16,7 +16,8 @@ class CallbackRequestController extends Controller
                 'callback_requests.*',
                 'mlm_users.first_name',
                 'mlm_users.last_name',
-                'mlm_users.user_name'
+                'mlm_users.user_name',
+                'mlm_users.phone'
             )
             ->leftJoin('mlm_users', 'callback_requests.mlm_user_id', '=', 'mlm_users.id');
 
@@ -26,6 +27,12 @@ class CallbackRequestController extends Controller
                 ->addColumn('name', fn($row) => $row->first_name . ' ' . $row->last_name)
 
                 ->addColumn('username', fn($row) => $row->user_name)
+
+                ->addColumn('phone', fn($row) => $row->phone ? '<a href="tel:' . e($row->phone) . '">' . e($row->phone) . '</a>' : '<span class="text-muted">—</span>')
+
+                ->addColumn('issue_summary', fn($row) => $row->issue_summary
+                    ? '<span title="' . e($row->issue_summary) . '">' . e(\Illuminate\Support\Str::limit($row->issue_summary, 40)) . '</span>'
+                    : '<span class="text-muted">—</span>')
 
                 ->addColumn('status', function ($row) {
                     $map = [
@@ -45,28 +52,30 @@ class CallbackRequestController extends Controller
                 ->addColumn('created_at', fn($row) => $row->created_at->format('d-m-Y'))
 
                 ->addColumn('action', function ($row) {
-                    $statuses = ['PENDING', 'SCHEDULED', 'COMPLETED', 'CANCELLED'];
-                    $options = '';
-                    foreach ($statuses as $s) {
-                        $selected = $s === $row->status ? 'selected' : '';
-                        $options .= "<option value=\"{$s}\" {$selected}>{$s}</option>";
-                    }
+                    $notes = e($row->admin_notes ?? '');
+                    $name = e($row->first_name . ' ' . $row->last_name);
+                    $userName = e($row->user_name);
+                    $phone = e($row->phone ?? '');
+                    $date = $row->preferred_date;
+                    $time = $row->preferred_time;
+                    $issue = e($row->issue_summary ?? '');
+                    $status = e($row->status);
 
-                    return '
-                        <div class="d-flex align-items-center gap-1">
-                            <select class="form-select form-select-sm status-select" data-id="' . $row->id . '" style="width:130px">
-                                ' . $options . '
-                            </select>
-                            <button class="btn btn-sm btn-primary update-status-btn" data-id="' . $row->id . '">
-                                <i class="fas fa-save"></i>
-                            </button>
-                            <button class="btn btn-sm btn-info notes-btn" data-id="' . $row->id . '" data-notes="' . e($row->admin_notes ?? '') . '">
-                                <i class="fas fa-sticky-note"></i>
-                            </button>
-                        </div>';
+                    return '<button class="btn btn-sm btn-primary manage-btn"
+                        data-id="' . $row->id . '"
+                        data-status="' . $status . '"
+                        data-notes="' . $notes . '"
+                        data-name="' . $name . '"
+                        data-username="' . $userName . '"
+                        data-phone="' . $phone . '"
+                        data-date="' . $date . '"
+                        data-time="' . $time . '"
+                        data-issue="' . $issue . '">
+                        <i class="fas fa-tasks"></i> Manage
+                    </button>';
                 })
 
-                ->rawColumns(['status', 'action'])
+                ->rawColumns(['phone', 'issue_summary', 'status', 'action'])
                 ->make(true);
         }
 

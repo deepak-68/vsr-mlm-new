@@ -18,8 +18,98 @@
             <span class="line"></span>
             <span class="line"></span>
             <span class="line"></span>
-        </div>
-    </div>
+</div>
+</div>
+
+@push('scripts')
+<script>
+$(document).ready(function () {
+    const badge = $('#notificationBadge');
+    const list = $('#notificationList');
+    const loading = $('#notificationLoading');
+
+    function loadRecentNotifications() {
+        loading.show();
+        $.ajax({
+            url: '{{ route("notification-logs.recent") }}',
+            method: 'GET',
+            success: function (res) {
+                loading.hide();
+                list.empty();
+                const notifications = res.data?.data || [];
+                if (!notifications.length) {
+                    list.html('<div class="text-center py-3 text-muted small"><i class="fas fa-bell-slash d-block mb-1 fs-5"></i>No new notifications</div>');
+                    return;
+                }
+                notifications.forEach(function (n) {
+                    const item = $('<a class="list-group-item list-group-item-action d-flex align-items-start gap-3 px-4 py-3 border-bottom ' + (n.is_read ? '' : 'bg-light') + '" href="' + '{{ route("notification-logs.index") }}"' + ' style="word-break: break-word; overflow-wrap: break-word;">');
+                    const iconMap = {
+                        purchase: 'fa-shopping-bag', income: 'fa-wallet', rank: 'fa-trophy',
+                        reward: 'fa-gift', registration: 'fa-user-plus', withdrawal: 'fa-credit-card', ticket: 'fa-ticket-alt'
+                    };
+                    const icon = iconMap[n.type] || 'fa-bell';
+                    const time = n.created_at ? new Date(n.created_at).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
+                    item.html(
+                        '<span class="badge bg-primary rounded-circle p-2 flex-shrink-0" style="font-size:12px"><i class="fas ' + icon + '"></i></span>' +
+                        '<div class="flex-grow-1" style="min-width:0">' +
+                            '<div class="d-flex justify-content-between align-items-start gap-2">' +
+                                '<strong class="' + (n.is_read ? '' : 'fw-bold') + '" style="font-size:14px">' + (n.title || '') + '</strong>' +
+                                '<small class="text-muted flex-shrink-0" style="font-size:11px; white-space:nowrap">' + time + '</small>' +
+                            '</div>' +
+                            '<div class="text-muted mt-1" style="font-size:13px; line-height:1.4">' + (n.message || '') + '</div>' +
+                        '</div>'
+                    );
+                    if (!n.is_read) {
+                        const markBtn = $('<button class="btn btn-sm btn-link p-1 flex-shrink-0 align-self-start mark-read-header" data-id="' + n.id + '" title="Mark read"><i class="fas fa-check-circle text-success" style="font-size:18px"></i></button>');
+                        markBtn.on('click', function (e) {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            const id = $(this).data('id');
+                            $.ajax({
+                                url: '{{ route("notification-logs.mark-read", ["id" => "_id_"]) }}'.replace('_id_', id),
+                                method: 'POST',
+                                data: { _token: '{{ csrf_token() }}' },
+                                success: function () {
+                                    loadRecentNotifications();
+                                    updateBadge();
+                                }
+                            });
+                        });
+                        item.append(markBtn);
+                    }
+                    list.append(item);
+                });
+            },
+            error: function () {
+                loading.hide();
+                list.html('<div class="text-center py-3 text-muted small">Failed to load notifications.</div>');
+            }
+        });
+    }
+
+    function updateBadge() {
+        $.ajax({
+            url: '{{ route("notification-logs.unread-count") }}',
+            method: 'GET',
+            success: function (res) {
+                const count = res.unread_count || 0;
+                badge.text(count).toggle(count > 0);
+            }
+        });
+    }
+
+    // Load recent notifications when dropdown opens
+    $(document).on('shown.bs.dropdown', '.notification_dropdown:first', function () {
+        loadRecentNotifications();
+    });
+
+    // Initial badge load
+    updateBadge();
+    // Poll every 30s
+    setInterval(updateBadge, 30000);
+});
+</script>
+@endpush
 </div>
 
 
@@ -33,6 +123,23 @@
 
                 <ul class="navbar-nav header-right">
 
+                    <li class="nav-item dropdown notification_dropdown">
+                        <a class="nav-link bell position-relative" href="javascript:void(0);" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="fas fa-bell"></i>
+                            <span id="notificationBadge" class="badge bg-danger position-absolute top-0 start-100 translate-middle rounded-pill" style="font-size: 10px; display: none;">0</span>
+                        </a>
+                        <div class="dropdown-menu dropdown-menu-end notification-dropdown" id="notificationDropdown" style="min-width: 420px; max-height: 480px;">
+                            <div class="dropdown-header d-flex justify-content-between align-items-center px-4 py-3 border-bottom">
+                                <strong class="fs-6">Notifications</strong>
+                                <a href="{{ route('notification-logs.index') }}" class="text-primary small fw-medium">View All</a>
+                            </div>
+                            <div class="list-group list-group-flush overflow-y-auto" id="notificationList" style="max-height: 400px;">
+                                <div class="text-center py-4 text-muted small" id="notificationLoading">
+                                    <div class="spinner-border spinner-border-sm text-primary me-1" role="status"></div>Loading...
+                                </div>
+                            </div>
+                        </div>
+                    </li>
                     <li class="nav-item dropdown notification_dropdown">
                         <a class="nav-link bell dz-theme-mode" href="javascript:void(0);">
                             <i id="icon-light" class="fas fa-sun"></i>

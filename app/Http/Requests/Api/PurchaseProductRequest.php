@@ -24,7 +24,7 @@ class PurchaseProductRequest extends FormRequest
         return [
             'user_id' => 'required|exists:mlm_users,id',
             'product_id' => 'required|exists:products,id',
-            'quantity' => 'required|integer|min:1',
+            'quantity' => 'required|integer|min:2',
         ];
     }
 }

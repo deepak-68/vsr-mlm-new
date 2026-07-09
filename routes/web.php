@@ -90,7 +90,6 @@ use App\Http\Controllers\MLM\RewardController;
 use App\Http\Controllers\MLM\TeamGenealogyController;
 use App\Http\Controllers\MLM\UserRankController;
 use App\Http\Controllers\MLM\UserRewardController;
-use App\Http\Controllers\MLM\WalletController;
 use App\Http\Controllers\NdisAboutController;
 use App\Http\Controllers\NdisServiceController;
 use App\Http\Controllers\NdisSupportController;
@@ -1022,6 +1021,10 @@ Route::get('/cc-settings', [CCSettingController::class, 'index'])->name('cc-sett
 Route::put('/cc-settings/{ccSetting}', [CCSettingController::class, 'update'])->name('cc-settings.update');
 Route::delete('/cc-settings/{ccSetting}', [CCSettingController::class, 'destroy'])->name('cc-settings.destroy');
 
+// 💰 Withdrawal Charge Settings
+Route::get('/withdrawal-charge-settings', [CCSettingController::class, 'withdrawalChargeIndex'])->name('withdrawal-charge-settings.index');
+Route::put('/withdrawal-charge-settings/{ccSetting}', [CCSettingController::class, 'update'])->name('withdrawal-charge-settings.update');
+
 // Bank account Settings
 Route::get('/bank-account-settings', [BankAccountSettingController::class, 'index'])->name('bank-account-settings.index');
 Route::post('/bank-account-settings', [BankAccountSettingController::class, 'store'])->name('bank-account-settings.store');
@@ -1029,39 +1032,6 @@ Route::put('/bank-account-settings/{bankAccountSetting}', [BankAccountSettingCon
 Route::delete('/bank-account-settings/{bankAccountSetting}', [BankAccountSettingController::class, 'destroy'])->name('bank-account-settings.destroy');
 
 
-
-// Wallet Management
-Route::resource('wallets', WalletController::class);
-Route::get('/wallets/{wallet}/payout-config', [WalletController::class, 'payoutConfig'])
-    ->name('wallets.payout-config');
-Route::post('/wallets/{wallet}/payout-config', [WalletController::class, 'updatePayoutConfig'])
-    ->name('wallets.update-payout-config');
-Route::get('/wallets/{wallet}/charges', [WalletController::class, 'charges'])
-    ->name('wallets.charges');
-Route::post('/wallets/{wallet}/charges', [WalletController::class, 'updateCharges'])
-    ->name('wallets.update-charges');
-Route::post('/wallets/{wallet}/sync', [WalletController::class, 'syncWallet'])
-    ->name('wallets.sync');
-Route::post('/wallets/{wallet}/assign-user', [WalletController::class, 'assignUser'])
-    ->name('wallets.assign-user');
-Route::delete('/wallets/{wallet}/remove-user', [WalletController::class, 'removeUser'])
-    ->name('wallets.remove-user');
-
-    Route::get('/financial-overview', [WalletController::class, 'financialOverview'])
-    ->name('wallets.financial-overview');
-Route::get('/commission-wallet', [WalletController::class, 'commissionWallet'])
-    ->name('wallets.commission-wallet');
-    Route::get('/purchase-wallet', [WalletController::class, 'purchaseWallet'])
-    ->name('wallets.purchase-wallet');
-
-Route::get('/pending-earnings', [WalletController::class, 'pendingEarnings'])
-    ->name('wallets.pending-earnings');
-    Route::get('/bonus-history', [WalletController::class, 'bonusHistory'])
-    ->name('wallets.bonus-history');
-    Route::get('/cc-logs', [WalletController::class, 'ccLogs'])
-    ->name('wallets.cc-logs');
-    Route::get('/pair-matching-logs', [WalletController::class, 'pairMatchingLogs'])
-    ->name('wallets.pair-matching-logs');
 
     Route::get('kyc-documents', [KycDocumentController::class, 'index'])->name('kyc-documents.index');
     Route::get('kyc-documents/{id}', [KycDocumentController::class, 'viewKyc'])->name('kyc-documents.show');
@@ -1103,6 +1073,10 @@ Route::get('/pending-earnings', [WalletController::class, 'pendingEarnings'])
 
     // ── Notification Logs ──────────────────────────────────────────────
     Route::get('notification-logs', [NotificationLogController::class, 'index'])->name('notification-logs.index');
+    Route::get('notification-logs/recent', [NotificationLogController::class, 'recent'])->name('notification-logs.recent');
+    Route::get('notification-logs/unread-count', [NotificationLogController::class, 'unreadCount'])->name('notification-logs.unread-count');
+    Route::post('notification-logs/{id}/read', [NotificationLogController::class, 'markAsRead'])->name('notification-logs.mark-read');
+    Route::post('notification-logs/read-all', [NotificationLogController::class, 'markAllAsRead'])->name('notification-logs.mark-all-read');
 
     // ── Reports ────────────────────────────────────────────────────────
     Route::get('reports/purchase', [ReportController::class, 'purchaseReport'])->name('reports.purchase');

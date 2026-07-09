@@ -338,9 +338,10 @@ class MLMApiController extends Controller
     public function getUserProfile($userId)
     {
         try {
-            $user = MlmUser::with(['sponsor', 'payoutBalance', 'tree'])->findOrFail($userId);
+            $user = MlmUser::with(['sponsor', 'payoutBalance', 'tree', 'currentRank.rank'])->findOrFail($userId);
             $tree = $user->tree;
             $stats = $this->calculateUserStats($user, $tree);
+            $stats['rank'] = $user->currentRank?->rank?->name ?? 'Fresh';
             
             return response()->json([
                 'success' => true,

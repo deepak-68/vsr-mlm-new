@@ -2,7 +2,6 @@
 
 namespace App\Services;
 
-use App\Models\CCSetting;
 use App\Models\IncomeLog;
 use App\Models\MLMTreeClosure;
 use App\Models\Order;
@@ -19,10 +18,11 @@ class LevelIncomeService
         2 => 4.0,
         3 => 3.0,
         4 => 2.0,
-        5 => 1.0,
+        5 => 2.0,
     ];
 
     public function __construct(
+        private readonly IncomeBaseProvider $incomeBaseProvider,
         private readonly IncomeLogService $incomeLogService,
         private readonly NotificationService $notificationService,
     ) {}
@@ -45,7 +45,7 @@ class LevelIncomeService
             return $results;
         }
 
-        $ccRate = CCSetting::getActiveRate();
+        $baseAmount = $this->incomeBaseProvider->getBaseAmount($order);
 
         foreach ($ancestors as $closure) {
             $level = (int) $closure->depth;
@@ -64,14 +64,14 @@ class LevelIncomeService
                 continue;
             }
 
-            $levelAmount = ($orderCC * $ccRate) * ($levelPct / 100);
+            $levelAmount = $baseAmount * ($levelPct / 100);
 
             if ($levelAmount <= 0) {
                 continue;
             }
 
             try {
-                DB::transaction(function () use ($ancestorUserId, $levelAmount, $order, $buyerUserId, $level, $orderCC, &$results) {
+                DB::transaction(function () use ($ancestorUserId, $levelAmount, $order, $buyerUserId, $level, $orderCC, $levelPct, &$results) {
                     $wallet = WalletBalance::firstOrCreate(
                         ['user_id' => $ancestorUserId, 'wallet_id' => 1],
                         ['balance' => 0, 'total_earned' => 0]
@@ -100,7 +100,7 @@ class LevelIncomeService
                         ccAmount: $orderCC,
                         currencyAmount: $levelAmount,
                         fromUserId: $buyerUserId,
-                        remarks: "Level {$level} income - {$levelPct}% of CC value",
+                        remarks: "Level {$level} income - {$levelPct}% of {$this->incomeBaseProvider->getLabel()}",
                     );
 
                     $this->notificationService->createIncomeNotification(
@@ -126,6 +126,7 @@ class LevelIncomeService
         Log::info('Level income processed', [
             'order_id' => $order->id,
             'buyer_user_id' => $buyerUserId,
+            'base_amount' => $baseAmount,
             'levels_distributed' => count($results),
         ]);
 

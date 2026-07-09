@@ -23,6 +23,7 @@ class PurchaseService
         private readonly BinaryMatchingService $binaryMatchingService,
         private readonly PayoutService $payoutService,
         private readonly LevelIncomeService $levelIncomeService,
+        private readonly RankIncomeService $rankIncomeService,
         private readonly RepurchaseIncomeService $repurchaseIncomeService,
         private readonly RankService $rankService,
         private readonly RewardTourService $rewardTourService,
@@ -111,9 +112,7 @@ class PurchaseService
 
                     $this->levelIncomeService->processLevelIncome($order, $ccPoints);
 
-                    if ($this->repurchaseIncomeService->isRepurchase($actualUserId)) {
-                        $this->repurchaseIncomeService->processRepurchaseIncome($order, $ccPoints);
-                    }
+                    $this->rankIncomeService->processRankIncome($order);
 
                     $userRank = $this->rankService->checkAndUpgradeRank($actualUserId);
                     if ($userRank) {
@@ -167,9 +166,7 @@ class PurchaseService
 
             $this->levelIncomeService->processLevelIncome($order, $ccPoints);
 
-            if ($this->repurchaseIncomeService->isRepurchase($userId)) {
-                $this->repurchaseIncomeService->processRepurchaseIncome($order, $ccPoints);
-            }
+            $this->rankIncomeService->processRankIncome($order);
 
             $userRank = $this->rankService->checkAndUpgradeRank($userId);
             if ($userRank) {

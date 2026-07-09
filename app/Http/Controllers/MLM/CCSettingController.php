@@ -12,22 +12,32 @@ class CCSettingController extends Controller
      */
     public function index()
     {
-        // Auto-create default if doesn't exist
-        $setting = CCSetting::first();
-        
-        if (!$setting) {
-            $setting = CCSetting::create([
-                'value' => 60.00,
+        $conversionRate = CCSetting::where('key', 'conversion_rate')->first();
+        if (!$conversionRate) {
+            $conversionRate = CCSetting::create([
+                'key' => 'conversion_rate',
+                'value' => 1.00,
                 'is_active' => true,
             ]);
         }
 
-        return view('admin.pages.mlm.cc-points-settings', compact('setting'));
+        return view('admin.pages.mlm.cc-points-settings', compact('conversionRate'));
     }
 
-    /**
-     * Update the setting (value + status)
-     */
+    public function withdrawalChargeIndex()
+    {
+        $withdrawalCharge = CCSetting::where('key', 'withdrawal_charge')->first();
+        if (!$withdrawalCharge) {
+            $withdrawalCharge = CCSetting::create([
+                'key' => 'withdrawal_charge',
+                'value' => 0.00,
+                'is_active' => true,
+            ]);
+        }
+
+        return view('admin.pages.mlm.withdrawal-charge-settings', compact('withdrawalCharge'));
+    }
+
     public function update(Request $request, CCSetting $ccSetting)
     {
         $validated = $request->validate([
@@ -36,16 +46,16 @@ class CCSettingController extends Controller
         ]);
 
         $ccSetting->update($validated);
-        
-        return back()->with('success', 'CC Point settings updated successfully.');
+
+        $label = $ccSetting->key === 'withdrawal_charge' ? 'Withdrawal Charge' : 'CC Point';
+
+        return back()->with('success', "{$label} settings updated successfully.");
     }
 
-    /**
-     * Delete the setting (will auto-create default on next visit)
-     */
     public function destroy(CCSetting $ccSetting)
     {
+        $label = $ccSetting->key === 'withdrawal_charge' ? 'Withdrawal Charge' : 'CC Point';
         $ccSetting->delete();
-        return back()->with('success', 'CC Point setting deleted. Default will be restored.');
+        return back()->with('success', "{$label} setting deleted.");
     }
 }

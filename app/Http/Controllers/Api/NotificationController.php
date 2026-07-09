@@ -49,21 +49,23 @@ class NotificationController extends Controller
         ]);
     }
 
-    // public function unreadCount(Request $request)
-    // {
-    //     $request->validate([
-    //         'user_id' => 'required',
-    //     ]);
-    //     $user = MlmUser::findOrFail($request->user_id);
-    //     $userId = $user->id;
-    //         ->where('is_read', false)
-    //         ->count();
+    public function unreadCount(Request $request)
+    {
+        $request->validate([
+            'user_id' => 'required',
+        ]);
+        $user = MlmUser::findOrFail($request->user_id);
+        $userId = $user->id;
 
-    //     return response()->json([
-    //         'success' => true,
-    //         'unread_count' => $count,
-    //     ]);
-    // }
+        $count = Notification::where('mlm_user_id', $userId)
+            ->where('is_read', false)
+            ->count();
+
+        return response()->json([
+            'success' => true,
+            'unread_count' => $count,
+        ]);
+    }
 
     public function markAsRead(Request $request, $id)
     {

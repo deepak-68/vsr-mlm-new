@@ -64,7 +64,7 @@ class OrderController extends Controller
         $request->validate([
             'user_id' => 'required|exists:mlm_users,id',
             'product_id' => 'required|exists:products,id',
-            'quantity' => 'required|integer|min:1',
+            'quantity' => 'required|integer|min:2',
             'transaction_number' => 'required|string|max:255',
             'payment_proof' => 'required|file|mimes:jpg,jpeg,png,pdf|max:5120',
             'target_track_id' => 'nullable|string',
@@ -141,7 +141,7 @@ class OrderController extends Controller
         $request->validate([
             'ordering_user_id' => 'required',
             'product_id' => 'required|exists:products,id',
-            'quantity' => 'required|integer|min:1',
+            'quantity' => 'required|integer|min:2',
         ]);
 
         $orderingUser = MlmUser::findOrFail($request->ordering_user_id);

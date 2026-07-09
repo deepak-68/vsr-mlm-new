@@ -80,7 +80,6 @@
                                     <tr>
                                         <td>{{ $loop->iteration }}</td>
                                         <td>
-                                        <td>
                                             @php
                                                 $firstImage = $product->first_image;
                                             @endphp

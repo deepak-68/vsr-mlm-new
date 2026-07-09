@@ -30,6 +30,11 @@ class MailNotificationService
         Mail::to($sponsor->email)->queue(new SponsorNotificationEmail($sponsor, $newUser));
     }
 
+    public function sendSponsorActivation(MlmUser $sponsor, MlmUser $activatedUser): void
+    {
+        Mail::to($sponsor->email)->queue(new SponsorActivationEmail($sponsor, $activatedUser));
+    }
+
     public function sendBinaryPosition(MlmUser $user, string $position, ?string $parentName = null): void
     {
         Mail::to($user->email)->queue(new BinaryPositionEmail($user, $position, $parentName));

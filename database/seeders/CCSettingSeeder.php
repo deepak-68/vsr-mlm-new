@@ -13,7 +13,7 @@ class CCSettingSeeder extends Seeder
      */
     public function run(): void
     {
-        DB::table('settings')->updateOrInsert(
+        DB::table('cc_settings')->updateOrInsert(
             ['id' => 1],
             [
                 'value'      => 1.00,
