@@ -16,31 +16,31 @@ class AuthController extends Controller
         $request->validate([
             'username' => 'required|string',
             'password' => 'required|string',
-            'cf_turnstile_response' => 'nullable|string',
+            // 'cf_turnstile_response' => 'nullable|string',
         ]);
 
         /**
          * Optional: Verify Cloudflare Turnstile
          * Skip if mobile app or disabled
          */
-        if ($request->filled('cf_turnstile_response')) {
+        // if ($request->filled('cf_turnstile_response')) {
 
-            $response = Http::asForm()->post(
-                'https://challenges.cloudflare.com/turnstile/v0/siteverify',
-                [
-                    'secret'   => env('TURNSTILE_SECRETKEY'),
-                    'response' => $request->cf_turnstile_response,
-                    'remoteip' => $request->ip(),
-                ]
-            );
+        //     $response = Http::asForm()->post(
+        //         'https://challenges.cloudflare.com/turnstile/v0/siteverify',
+        //         [
+        //             'secret'   => env('TURNSTILE_SECRETKEY'),
+        //             'response' => $request->cf_turnstile_response,
+        //             'remoteip' => $request->ip(),
+        //         ]
+        //     );
 
-            if (!($response->json()['success'] ?? false)) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'CAPTCHA verification failed.'
-                ], 422);
-            }
-        }
+        //     if (!($response->json()['success'] ?? false)) {
+        //         return response()->json([
+        //             'success' => false,
+        //             'message' => 'CAPTCHA verification failed.'
+        //         ], 422);
+        //     }
+        // }
 
         $mlmUser = MlmUser::with([
                 'detail'
